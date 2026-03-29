@@ -68,7 +68,9 @@ if [ $((TOTAL_COUNT % L1_INTERVAL)) -eq 0 ] && [ -f "$RULES_FILE" ]; then
 fi
 
 # --- L2: Behavioral detection ---
-if [ -d "$DOCS_DIR" ]; then
+# Skip L2 if no docs/*.md files exist yet (still in bootstrap/initial planning phase)
+DOC_COUNT=$(find "$DOCS_DIR" -name '*.md' 2>/dev/null | head -1)
+if [ -d "$DOCS_DIR" ] && [ -n "$DOC_COUNT" ]; then
     if [ "$SINCE_DOCS_COUNT" -ge "$L2_BLOCK_THRESHOLD" ]; then
         echo "ERROR: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls (threshold: ${L2_BLOCK_THRESHOLD})." >&2
         echo "Update docs/progress/ or docs/issue/ before continuing." >&2
