@@ -5,9 +5,10 @@
 #
 # Triggered by: PreToolUse (every tool call, plugin-level hook)
 # Self-guard: exits immediately if /forge workflow is not active
+# SAFETY: This script NEVER exits with code 2 (never blocks tool calls).
+#         Blocking creates deadlocks where Claude cannot write docs to reset the counter.
 # Exit codes:
-#   0 - proceed normally (may output rules reminder to stdout)
-#   2 - block the tool call (docs maintenance violation)
+#   0 - always (may output warnings to stdout)
 
 set -euo pipefail
 
@@ -26,7 +27,7 @@ fi
 # --- Configuration ---
 L1_INTERVAL=10          # Inject rules every N tool calls
 L2_THRESHOLD=30         # Warn if docs/ not updated after N tool calls
-L2_BLOCK_THRESHOLD=80   # Strong warn if docs/ not updated after N tool calls
+L2_STRONG_THRESHOLD=80  # Strong warn if docs/ not updated after N tool calls
 
 # --- Counter Management ---
 # Counter file format: two lines
@@ -34,8 +35,12 @@ L2_BLOCK_THRESHOLD=80   # Strong warn if docs/ not updated after N tool calls
 #   Line 2: tool call count since last docs/ update
 # File is guaranteed to exist here (self-guard above + init-docs.sh creates it)
 
-TOTAL_COUNT=$(sed -n '1p' "$COUNTER_FILE")
-SINCE_DOCS_COUNT=$(sed -n '2p' "$COUNTER_FILE")
+TOTAL_COUNT=$(sed -n '1p' "$COUNTER_FILE" 2>/dev/null || echo 0)
+SINCE_DOCS_COUNT=$(sed -n '2p' "$COUNTER_FILE" 2>/dev/null || echo 0)
+
+# Handle empty/corrupted values
+TOTAL_COUNT=${TOTAL_COUNT:-0}
+SINCE_DOCS_COUNT=${SINCE_DOCS_COUNT:-0}
 
 TOTAL_COUNT=$((TOTAL_COUNT + 1))
 SINCE_DOCS_COUNT=$((SINCE_DOCS_COUNT + 1))
@@ -67,11 +72,11 @@ if [ $((TOTAL_COUNT % L1_INTERVAL)) -eq 0 ] && [ -f "$RULES_FILE" ]; then
     echo "======== END RULES REFRESH ========"
 fi
 
-# --- L2: Behavioral detection (warn-only, never blocks) ---
+# --- L2: Behavioral detection (warn-only, NEVER blocks) ---
 # Skip L2 if no docs/*.md files exist yet (still in bootstrap/initial planning phase)
-DOC_COUNT=$(find "$DOCS_DIR" -name '*.md' 2>/dev/null | head -1)
-if [ -d "$DOCS_DIR" ] && [ -n "$DOC_COUNT" ]; then
-    if [ "$SINCE_DOCS_COUNT" -ge "$L2_BLOCK_THRESHOLD" ]; then
+DOC_EXISTS=$(find "$DOCS_DIR" -name '*.md' 2>/dev/null | head -1)
+if [ -d "$DOCS_DIR" ] && [ -n "$DOC_EXISTS" ]; then
+    if [ "$SINCE_DOCS_COUNT" -ge "$L2_STRONG_THRESHOLD" ]; then
         echo "STRONG WARNING: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls. Update docs/progress/ or docs/issue/ as soon as the current action completes."
     elif [ "$SINCE_DOCS_COUNT" -ge "$L2_THRESHOLD" ]; then
         echo "WARNING: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls. Update documentation per /forge workflow rules."
