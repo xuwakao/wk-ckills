@@ -26,7 +26,7 @@ fi
 # --- Configuration ---
 L1_INTERVAL=10          # Inject rules every N tool calls
 L2_THRESHOLD=30         # Warn if docs/ not updated after N tool calls
-L2_BLOCK_THRESHOLD=50   # Block if docs/ not updated after N tool calls
+L2_BLOCK_THRESHOLD=80   # Strong warn if docs/ not updated after N tool calls
 
 # --- Counter Management ---
 # Counter file format: two lines
@@ -67,14 +67,12 @@ if [ $((TOTAL_COUNT % L1_INTERVAL)) -eq 0 ] && [ -f "$RULES_FILE" ]; then
     echo "======== END RULES REFRESH ========"
 fi
 
-# --- L2: Behavioral detection ---
+# --- L2: Behavioral detection (warn-only, never blocks) ---
 # Skip L2 if no docs/*.md files exist yet (still in bootstrap/initial planning phase)
 DOC_COUNT=$(find "$DOCS_DIR" -name '*.md' 2>/dev/null | head -1)
 if [ -d "$DOCS_DIR" ] && [ -n "$DOC_COUNT" ]; then
     if [ "$SINCE_DOCS_COUNT" -ge "$L2_BLOCK_THRESHOLD" ]; then
-        echo "ERROR: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls (threshold: ${L2_BLOCK_THRESHOLD})." >&2
-        echo "Update docs/progress/ or docs/issue/ before continuing." >&2
-        exit 2
+        echo "STRONG WARNING: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls. Update docs/progress/ or docs/issue/ as soon as the current action completes."
     elif [ "$SINCE_DOCS_COUNT" -ge "$L2_THRESHOLD" ]; then
         echo "WARNING: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls. Update documentation per /forge workflow rules."
     fi
