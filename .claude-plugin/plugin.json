@@ -1,0 +1,8 @@
+{
+  "name": "wk-ckills",
+  "description": "A collection of custom Claude Code skills for development workflows.",
+  "version": "1.0.0",
+  "author": {
+    "name": "malihom"
+  }
+}

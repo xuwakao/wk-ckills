@@ -1,0 +1,14 @@
+{
+  "name": "wk-ckills",
+  "owner": {
+    "name": "malihom"
+  },
+  "plugins": [
+    {
+      "name": "wk-ckills",
+      "description": "A collection of custom Claude Code skills for development workflows.",
+      "source": "./",
+      "version": "1.0.0"
+    }
+  ]
+}
