@@ -74,7 +74,7 @@ fi
 
 # --- L2: Behavioral detection (warn-only, NEVER blocks) ---
 # Skip L2 if no docs/*.md files exist yet (still in bootstrap/initial planning phase)
-DOC_EXISTS=$(find "$DOCS_DIR" -name '*.md' 2>/dev/null | head -1)
+DOC_EXISTS=$(find "$DOCS_DIR" -name '*.md' -print 2>/dev/null | head -1 || true)
 if [ -d "$DOCS_DIR" ] && [ -n "$DOC_EXISTS" ]; then
     if [ "$SINCE_DOCS_COUNT" -ge "$L2_STRONG_THRESHOLD" ]; then
         echo "STRONG WARNING: docs/ has not been updated for ${SINCE_DOCS_COUNT} tool calls. Update docs/progress/ or docs/issue/ as soon as the current action completes."
