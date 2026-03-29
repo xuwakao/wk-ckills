@@ -31,7 +31,7 @@ Created: {{TIMESTAMP}}
   **Expected**: What should have happened
 
   #### Diagnosis
-  **Root Cause**: (once determined; mark [待验证] if hypothesis)
+  **Root Cause**: (once determined; mark [UNVERIFIED] if hypothesis)
   **Evidence**: Source file paths, command outputs, log excerpts
 
   #### Fix Attempts
@@ -53,5 +53,5 @@ Created: {{TIMESTAMP}}
   Each finding is a subsection: ### F-NNN: <title>
   Reference within this document: [F-NNN]
   Reference from other documents: [issue/<name>#F-NNN]
-  Unverified findings must be marked [待验证].
+  Unverified findings must be marked [UNVERIFIED].
 -->

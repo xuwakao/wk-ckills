@@ -11,6 +11,23 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/hooks-handlers/post-tool-use-review-check.sh",
+            "timeout": 10
+          },
+          {
+            "type": "prompt",
+            "prompt": "You are a strict /forge workflow auditor. First: if there is no docs/plan/ directory in the project, output nothing and stop immediately. Otherwise, check if this file write is part of a docs/ update. If it writes to a plan file marking a phase as COMPLETE, or writes a review entry to a progress file, evaluate: (1) Does the review have a proper table with one row per expected result? (2) Does each row have concrete evidence (file paths, command outputs), not vague claims like 'it works'? (3) Are unverified items marked [UNVERIFIED]? (4) Is it a one-line dismissal like 'review complete, no changes'? If any issue is found, output a concise warning. If the write is not docs-related or looks fine, output nothing.",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

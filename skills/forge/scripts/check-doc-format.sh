@@ -97,11 +97,11 @@ fi
 
 # --- Cross-document checks ---
 # Check for unverified findings
-UNVERIFIED=$(grep -rl '\[待验证\]' "$DOCS_DIR" 2>/dev/null | wc -l | tr -d ' ' || true)
+UNVERIFIED=$(grep -rl '\[UNVERIFIED\]' "$DOCS_DIR" 2>/dev/null | wc -l | tr -d ' ' || true)
 if [ "${UNVERIFIED:-0}" -gt 0 ]; then
     echo ""
-    echo "INFO: ${UNVERIFIED} file(s) contain unverified findings [待验证]:"
-    grep -rl '\[待验证\]' "$DOCS_DIR" 2>/dev/null | while read -r uf; do
+    echo "INFO: ${UNVERIFIED} file(s) contain unverified findings [UNVERIFIED]:"
+    grep -rl '\[UNVERIFIED\]' "$DOCS_DIR" 2>/dev/null | while read -r uf; do
         echo "  - $(echo "$uf" | sed "s|${DOCS_DIR}/||")"
     done
 fi

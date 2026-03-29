@@ -48,5 +48,5 @@ Source: {{SOURCE_REFERENCE}}
   Each finding is a subsection: ### F-NNN: <title>
   Reference within this document: [F-NNN]
   Reference from other documents: [plan/<name>#F-NNN]
-  Unverified findings must be marked [待验证] with planned verification method.
+  Unverified findings must be marked [UNVERIFIED] with planned verification method.
 -->

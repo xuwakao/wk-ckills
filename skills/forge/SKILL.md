@@ -73,33 +73,66 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 2. Identify alternative approaches. For each, document technical pros, cons, and rationale. Select the approach with the strongest technical justification.
 3. Create a detailed plan divided into sequential phases. For each phase, specify:
    - Objective
-   - Expected results (concrete, verifiable outcomes)
-   - Dependencies on prior phases
+   - Expected results: must be **precise and testable** — define what "implemented" means (compiles? passes tests? handles edge cases?). Distinguish between stub/placeholder and real implementation.
+   - Dependencies on prior phases: **build a dependency graph** and verify no circular dependencies exist.
+   - Risks and unknowns: for each phase, list what could go wrong and how to detect it early.
 4. Write the plan to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`.
 5. Create the corresponding `docs/progress/<name>.md` using the progress template.
 6. Log the planning action to the progress document.
 
 ### META-PHASE B: Plan Review
 
-1. Re-read the entire plan document.
-2. Verify: no missing phases, all expected results are verifiable, no circular dependencies, edge cases addressed, alternatives properly evaluated.
-3. This is the draft stage — **direct edits to the plan are permitted**. Modify freely until the plan is sound.
-4. Log the review completion to progress.
+Re-read the entire plan document, then produce a **Review Checklist** in the progress document under `### Plan Review`. This checklist is mandatory — a review without it is not a review.
+
+The checklist must address each item with a PASS/FAIL/RISK verdict and evidence:
+
+1. **Dependency validation**: trace the dependency graph. For each "depends on Phase X", verify Phase X's outputs are sufficient inputs for this phase. Check for circular dependencies.
+2. **Expected results precision**: for each phase's expected results, answer: "How exactly will I verify this?" If the answer is vague, the expected result must be rewritten.
+3. **Feasibility assessment**: for each phase, is the expected result achievable given the current codebase state? Flag phases where the effort is uncertain or where hidden dependencies may exist.
+4. **Risk identification**: what could cause each phase to fail? Are there external dependencies (OS APIs, third-party crates, hardware) that need investigation before execution?
+5. **Stub vs real implementation**: explicitly mark which deliverables are stubs/placeholders and which are full implementations. The plan must not use ambiguous terms like "implemented" without qualification.
+6. **Alternatives completeness**: were the rejected alternatives properly evaluated, or dismissed without evidence?
+
+If any item is FAIL or RISK, fix the plan before proceeding. This is the draft stage — **direct edits to the plan are permitted**.
+
+Log the completed checklist to progress. A one-line "review complete, no changes" is **never acceptable** — the checklist must have per-item entries.
 
 ### META-PHASE C: Phase Execution (loop over each phase)
 
 #### C.1 Pre-Phase
-- Re-read the active plan document (refresh objectives and expected results for this phase).
-- Log "Starting Phase N" to progress.
+- **Re-read the active plan document** — specifically this phase's objective, expected results, and dependencies. This is not optional. After re-reading, log to progress: `### Starting Phase N` with a brief restatement of expected results (proves the plan was re-read).
+- If the plan was corrected since last read, verify the corrections are understood before proceeding.
 
 #### C.2 Execute
 - Implement the phase according to the plan.
 - Follow existing code conventions and patterns.
 
 #### C.3 Review
-- Compare the implementation against the plan's expected results for this phase.
-- Check code quality, correctness, and completeness.
-- Log review findings to progress.
+
+Produce a **Phase Review** entry in the progress document under `### Review: Phase N`. This entry is mandatory — a phase without a review entry cannot be marked COMPLETE. A PostToolUse hook will verify its presence.
+
+The review MUST use this exact table format (one row per expected result from the plan):
+
+```
+### Review: Phase N
+
+| # | Expected Result | Actual Result | Evidence | Verdict |
+|---|-----------------|---------------|----------|---------|
+| 1 | [copy from plan] | [what happened] | [file path / build output / test output] | PASS/FAIL/PARTIAL |
+| 2 | ... | ... | ... | ... |
+
+**Overall Verdict**: PASS / FAIL
+**Notes**: [any observations, risks, or caveats]
+```
+
+Rules:
+- The table must have one row for every expected result listed in the plan for this phase. Missing rows = incomplete review.
+- Evidence must be concrete: file paths, command outputs, test results. "It works" is not evidence.
+- PARTIAL counts as FAIL for the overall verdict.
+- If any expected result was never executed at runtime, its verdict must be `PASS [UNVERIFIED]` with verification method noted.
+
+If overall verdict is FAIL → enter C.4 which will route to RULE 5 (debugging).
+If overall verdict is PASS → proceed to C.4 for functional acceptance.
 
 #### C.4 Functional Acceptance (RULE 4)
 - Execute the acceptance procedure defined in RULE 4.
@@ -107,6 +140,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 - If FAIL: record issue in `docs/issue/`, enter debugging (RULE 5).
 
 #### C.5 Post-Phase
+- **Pre-condition**: verify that progress contains both `### Review: Phase N` (C.3) and a functional acceptance log (C.4) for this phase. If either is missing, go back and complete them. A phase CANNOT be marked COMPLETE without both artifacts.
 - Mark the phase as COMPLETE in the plan document.
 - Update progress with timestamp and results.
 - Proceed to the next phase without pausing (RULE 2).
@@ -154,7 +188,8 @@ After each phase implementation (META-PHASE C.4):
 - Do not comment out failing code to bypass errors.
 - Do not use catch-and-ignore patterns to suppress exceptions.
 - Do not apply temporary fixes or "good enough" solutions.
-- Every fix must address the root cause, not mask symptoms.
+- Do not use stubs, `unreachable!()`, `unimplemented!()`, no-op implementations, or dummy return values as "fixes" — these are workarounds that mask the real problem. If a stub is genuinely needed (e.g., a dependency has no platform support), it must be explicitly planned as a stub in the plan document, not introduced during debugging as a fix.
+- Every fix must address the root cause, not mask symptoms. If a fix makes the compiler happy but the functionality doesn't actually work, it is a workaround.
 
 ### 5b. Diagnose Before Fixing
 
@@ -202,7 +237,7 @@ Track every distinct fix attempt in the issue document.
 
 - Use formal, precise technical language. Colloquial or vague descriptions are not acceptable.
 - All technical conclusions must be based on verifiable sources: source code reading, compilation/execution output, official documentation, authoritative search results.
-- Do not state hypotheses or assumptions as facts. Unverified content must be marked `[待验证]` with the planned verification method.
+- Do not state hypotheses or assumptions as facts. Unverified content must be marked `[UNVERIFIED]` with the planned verification method. In particular: if a code path has never been executed at runtime, any claim that it "works" or "passes" must be marked `[UNVERIFIED]` — compilation alone does not verify correctness.
 - Record the evidence source: source file paths, documentation URLs, command output excerpts.
 
 ### Document Types and Templates
@@ -231,7 +266,7 @@ Every document (plan, progress, issue) contains a `## Findings` section.
 - Each finding is a subsection: `### F-NNN: <title>`.
 - Internal reference: `[F-NNN]`.
 - Cross-document reference: `[plan/<name>#F-NNN]`, `[progress/<name>#F-NNN]`, `[issue/<name>#F-NNN]`.
-- Unverified findings must include `[待验证]` and a verification plan.
+- Unverified findings must include `[UNVERIFIED]` and a verification plan.
 
 ### Append-Only Rule (during execution)
 
@@ -265,14 +300,14 @@ When all phases in the current plan are complete, or when no explicit next-step 
 1. **Assess current state**: scan all documents in `docs/`:
    - Completed phases and their results.
    - Issues with status `IN-PROGRESS` or `BLOCKED`.
-   - Findings marked `[待验证]`.
+   - Findings marked `[UNVERIFIED]`.
    - Any dependencies that have been unblocked.
 
 2. **Prioritize**: rank potential next tasks by:
    - Blocking severity: tasks that unblock other work take precedence.
    - Impact scope: issues affecting multiple components over isolated ones.
    - Urgency: `BLOCKED` issues that now have a viable path forward.
-   - Verification debt: accumulated `[待验证]` findings.
+   - Verification debt: accumulated `[UNVERIFIED]` findings.
 
 3. **Plan and execute**: create a new plan document for the selected task (following META-PHASE A → B flow) and continue execution (RULE 2).
 

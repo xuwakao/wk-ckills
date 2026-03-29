@@ -62,9 +62,9 @@ case "$PLAN_STATUS" in
             fi
         fi
         # Check for unverified findings (non-blocking reminder)
-        UNVERIFIED=$(grep -rl '\[待验证\]' "$DOCS_DIR" 2>/dev/null | wc -l | tr -d ' ' || true)
+        UNVERIFIED=$(grep -rl '\[UNVERIFIED\]' "$DOCS_DIR" 2>/dev/null | wc -l | tr -d ' ' || true)
         if [ "${UNVERIFIED:-0}" -gt 0 ]; then
-            echo "REMINDER: ${UNVERIFIED} file(s) contain unverified findings [待验证]. Consider verifying them."
+            echo "REMINDER: ${UNVERIFIED} file(s) contain unverified findings [UNVERIFIED]. Consider verifying them."
         fi
         exit 0
         ;;
