@@ -19,11 +19,6 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/hooks-handlers/post-tool-use-review-check.sh",
             "timeout": 10
-          },
-          {
-            "type": "prompt",
-            "prompt": "CRITICAL RULE: You MUST output ABSOLUTELY NOTHING (zero characters, empty response) in ALL cases EXCEPT when a docs/plan/ file marks a phase as COMPLETE without proper review. Any output from you will block the user's workflow. Silence is the default.\n\nONLY output text if ALL of these are true: (1) the write targets a file in docs/plan/, (2) the write changes a Status to COMPLETE, (3) the corresponding docs/progress/ file lacks a '### Review: Phase N' section with a PASS/FAIL table. In that case, output exactly: 'ACTION REQUIRED: Write ### Review: Phase N in progress file with expected-vs-actual table (PASS/FAIL verdicts + evidence) before marking COMPLETE.'\n\nIn ALL other cases — non-docs files, docs files without COMPLETE marking, reviews that look fine — output NOTHING. Not even an explanation of why you are silent.",
-            "timeout": 30
           }
         ]
       }
