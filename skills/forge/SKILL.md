@@ -117,6 +117,14 @@ Log the completed checklist to progress. A one-line "review complete, no changes
 #### C.2 Execute
 - Implement the phase according to the plan.
 - Follow existing code conventions and patterns.
+- **During implementation, actively record findings** to the Findings section of the relevant document (plan, progress, or issue). A finding is any non-obvious information discovered during work that would be valuable for future reference. Examples:
+  - API behavior that differs from documentation
+  - Undocumented constraints or limitations of a dependency
+  - Performance characteristics observed during testing
+  - Architectural decisions forced by the codebase (and why)
+  - Platform-specific quirks or incompatibilities
+  - Alternative approaches considered and rejected during implementation (with reason)
+- Record findings as they occur, not after the fact. Each finding: `### F-NNN: <title>` in the Findings section, referenced inline where relevant.
 
 #### C.3 Review
 
@@ -141,6 +149,8 @@ Rules:
 - Evidence must be concrete: file paths, command outputs, test results. "It works" is not evidence.
 - PARTIAL counts as FAIL for the overall verdict.
 - If any expected result was never executed at runtime, its verdict must be `PASS [UNVERIFIED]` with verification method noted.
+
+**Findings audit**: As part of the review, check whether any findings were recorded during C.2. If the Findings section is empty for this phase, ask: "Was nothing non-obvious discovered during implementation?" If genuinely nothing — acceptable but unusual for complex phases. If findings exist but were not recorded — record them now. The review entry should note the findings count: `**Findings this phase**: N (see [F-NNN], [F-NNN]...)` or `**Findings this phase**: 0 (no non-obvious discoveries)`.
 
 If overall verdict is FAIL → enter C.4 which will route to RULE 5 (debugging).
 If overall verdict is PASS → proceed to C.4 for functional acceptance.
@@ -208,6 +218,7 @@ Sequence: observe symptom → form hypothesis → gather evidence → confirm ro
 
 - The only exception: adding debug logging is permitted before diagnosis is complete.
 - Do not guess at fixes. If a fix is attempted without confirmed root cause, it is a guess.
+- **Record findings during diagnosis.** Debugging is a discovery-intensive process. Every non-obvious insight about the system's behavior, error patterns, dependency interactions, or API quirks encountered during diagnosis must be recorded as a finding in the issue or progress document. These findings are valuable even if the current issue is resolved — they inform future work.
 
 ### 5c. Diagnostic Tools
 

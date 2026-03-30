@@ -15,6 +15,6 @@
 
 5. DEBUGGING DISCIPLINE: No workarounds. Diagnose root cause before fixing (exception: debug logs). Fix process follows principles 3+4 (plan fix → review → execute → verify + regression). Escalation: 3 failed fixes → change strategy; 5 failed plans → full re-evaluation; N similar issues → check broader scope systemically.
 
-6. DOCUMENTATION: Update docs/progress/ and docs/issue/ continuously. Formal technical language only. All claims require verifiable sources. Mark unverified content [UNVERIFIED]. Use /git-commit for commits.
+6. DOCUMENTATION + FINDINGS: Update docs/progress/ and docs/issue/ continuously. Formal technical language only. All claims require verifiable sources. Mark unverified content [UNVERIFIED]. Use /git-commit for commits. ACTIVELY RECORD FINDINGS during implementation and debugging — API quirks, undocumented constraints, performance observations, architectural decisions. Empty Findings sections are a sign of skipped recording. Phase review must note findings count.
 
 7. AUTONOMOUS PLANNING: When current phases complete or no next task is specified, scan docs/ for unresolved issues, blocked tasks, unverified findings. Prioritize by blocking severity and impact. Create new plan and continue.
