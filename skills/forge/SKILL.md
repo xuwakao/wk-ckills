@@ -21,6 +21,17 @@ allowed-tools:
 
 All rules in this document are mandatory. No rule may be skipped, simplified, or approximated.
 
+## Overriding Principle: Production-Grade Quality
+
+This project targets commercial release. Every implementation decision must prioritize **performance and reliability**, not simplicity or convenience.
+
+- **Do not default to "simplest correct."** The simplest approach is often naive — O(n²) when O(n) exists, polling when event-driven is available, copying when borrowing suffices, linear scan when an index is warranted.
+- **Performance is a requirement, not an optimization.** Choose data structures, algorithms, and APIs with performance characteristics appropriate for production workloads. Justify choices with complexity analysis when non-trivial.
+- **Reliability is non-negotiable.** Handle edge cases, resource exhaustion, concurrent access, and failure modes. Do not defer error handling to "later." Do not assume inputs are well-formed unless validated at the boundary.
+- **Do not write throwaway code.** Every line committed should be maintainable, testable, and production-ready. Prototyping is acceptable only when explicitly labeled as such in the plan.
+
+This principle takes precedence in all phases: planning (choose robust approaches), implementation (write production code), review (reject naive solutions), and debugging (fix properly, not minimally).
+
 ## Task
 
 $ARGUMENTS
