@@ -93,20 +93,39 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 
 ### META-PHASE B: Plan Review
 
-Re-read the entire plan document, then produce a **Review Checklist** in the progress document under `### Plan Review`. This checklist is mandatory — a review without it is not a review.
+Re-read the entire plan document. Produce a **Plan Review** entry in the progress document under `### Plan Review`. This is a structured, multi-round review — not a formality.
 
-The checklist must address each item with a PASS/FAIL/RISK verdict and evidence:
+**The review MUST use this exact table format** (one row per phase):
 
-1. **Dependency validation**: trace the dependency graph. For each "depends on Phase X", verify Phase X's outputs are sufficient inputs for this phase. Check for circular dependencies.
-2. **Expected results precision**: for each phase's expected results, answer: "How exactly will I verify this?" If the answer is vague, the expected result must be rewritten.
-3. **Feasibility assessment**: for each phase, is the expected result achievable given the current codebase state? Flag phases where the effort is uncertain or where hidden dependencies may exist.
-4. **Risk identification**: what could cause each phase to fail? Are there external dependencies (OS APIs, third-party crates, hardware) that need investigation before execution?
-5. **Stub vs real implementation**: explicitly mark which deliverables are stubs/placeholders and which are full implementations. The plan must not use ambiguous terms like "implemented" without qualification.
-6. **Alternatives completeness**: were the rejected alternatives properly evaluated, or dismissed without evidence?
+```
+### Plan Review
 
-If any item is FAIL or RISK, fix the plan before proceeding. This is the draft stage — **direct edits to the plan are permitted**.
+| Phase | Dependencies OK | Expected Results Testable | Feasibility | Risks Identified | Stub/Real Marked | Verdict |
+|-------|----------------|--------------------------|-------------|-----------------|-----------------|---------|
+| 1     | [trace: no deps] | [how to verify each result] | [evidence] | [list risks] | [which are stubs] | PASS/FAIL/RISK |
+| 2     | [Phase 1 outputs X, Phase 2 needs X → OK / CIRCULAR] | ... | ... | ... | ... | ... |
+```
 
-Log the completed checklist to progress. A one-line "review complete, no changes" is **never acceptable** — the checklist must have per-item entries.
+Each cell must contain **specific evidence**, not assertions. Examples of what is NOT acceptable vs acceptable:
+
+| Column | NOT acceptable | Acceptable |
+|--------|---------------|------------|
+| Dependencies OK | "yes" | "Phase 2 needs compiled libfoo.a from Phase 1 output → verified Phase 1 produces it" |
+| Expected Results Testable | "yes, can test" | "Verify via: `cargo test --lib hvf` must pass 3 tests; `cargo build` exit 0" |
+| Feasibility | "should be fine" | "Checked: kqueue API available on macOS 10.15+, confirmed via `man kqueue`" |
+| Risks | "none" | "Risk: cros_async has no macOS backend (verified via `cargo tree -p cros_async -f '{p} {f}'`)" |
+
+**Additional cross-cutting checks** (separate section after the table):
+
+1. **Dependency graph**: draw the actual dependency order. Verify no cycles. Format: `Phase 1 → Phase 2 → Phase 3; Phase 1 → Phase 4`. If a cycle exists, it must be resolved before proceeding.
+2. **Alternatives completeness**: for each rejected alternative in the plan, verify it has evidence-based rationale. Flag any that were dismissed without investigation.
+
+**Plan Review is iterative:**
+1. If any phase has verdict FAIL or RISK → fix the plan (direct edits permitted in META-PHASE B).
+2. Re-run the review: produce `### Plan Review (round M)` with a fresh table.
+3. Repeat until all phases are PASS.
+
+A one-line "review complete, no changes" is **never acceptable**. The table and dependency graph are mandatory artifacts.
 
 ### META-PHASE C: Phase Execution (loop over each phase)
 

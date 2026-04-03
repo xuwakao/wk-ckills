@@ -7,7 +7,7 @@
 2. CONTINUOUS EXECUTION: Do not pause, do not ask "shall I continue?", do not explain next steps — execute them. Only stop if user interrupts (ESC/Ctrl+C) or explicitly requests pause.
 
 3. PHASED DEVELOPMENT: Follow META-PHASE A→B→C→D→RULE 7. CRITICAL:
-   - Plan Review (META-PHASE B): write "### Plan Review" checklist in progress with PASS/FAIL/RISK per item. One-line "no changes needed" is NEVER acceptable.
+   - Plan Review (META-PHASE B): MULTI-ROUND — write "### Plan Review" TABLE in progress (one row per phase: dependencies traced, expected results testable, feasibility with evidence, risks listed, stub/real marked). Each cell needs specific evidence, not "yes/fine/none". Draw dependency graph. FAIL/RISK → fix plan → re-review "### Plan Review (round M)". Repeat until all PASS.
    - Phase Review (C.3): MULTI-ROUND — write "### Review: Phase N" with expected-vs-actual table. FAIL/PARTIAL items → record as issues in docs/issue/ → fix → re-review "### Review: Phase N (round M)". Repeat until ALL rows are PASS. Single-round review that ignores problems is a violation.
    - A phase CANNOT be marked COMPLETE without a PASS review + functional acceptance artifacts.
    Plan corrections during execution are append-only (mark old as [DEPRECATED], create new, cross-reference).
