@@ -152,16 +152,22 @@ Rules:
 
 **Findings audit**: As part of the review, check whether any findings were recorded during C.2. If the Findings section is empty for this phase, ask: "Was nothing non-obvious discovered during implementation?" If genuinely nothing — acceptable but unusual for complex phases. If findings exist but were not recorded — record them now. The review entry should note the findings count: `**Findings this phase**: N (see [F-NNN], [F-NNN]...)` or `**Findings this phase**: 0 (no non-obvious discoveries)`.
 
-If overall verdict is FAIL → enter C.4 which will route to RULE 5 (debugging).
-If overall verdict is PASS → proceed to C.4 for functional acceptance.
+**Review is iterative.** If any FAIL or PARTIAL is found during review:
+1. **Record each issue** in `docs/issue/<name>.md` with a new issue entry (ISS-NNN), status `IN-PROGRESS`, cross-referenced to `[plan/<name>#PhaseN]`. This ensures every problem is traceable.
+2. Fix the issue (following RULE 5 if it is a bug, or direct code correction if it is a quality/logic issue).
+3. Mark the issue as `RESOLVED` in the issue document with resolution details.
+4. Re-run C.3 Review — produce a new review entry `### Review: Phase N (round M)` with a fresh expected-vs-actual table.
+5. Repeat until the overall verdict is PASS with zero FAIL/PARTIAL rows.
+
+Only when overall verdict is PASS with no outstanding issues → proceed to C.4.
 
 #### C.4 Functional Acceptance (RULE 4)
 - Execute the acceptance procedure defined in RULE 4.
 - If PASS: log success, proceed to C.5.
-- If FAIL: record issue in `docs/issue/`, enter debugging (RULE 5).
+- If FAIL: record issue in `docs/issue/`, fix, then re-run C.3 Review (iterative loop).
 
 #### C.5 Post-Phase
-- **Pre-condition**: verify that progress contains both `### Review: Phase N` (C.3) and a functional acceptance log (C.4) for this phase. If either is missing, go back and complete them. A phase CANNOT be marked COMPLETE without both artifacts.
+- **Pre-condition**: verify that progress contains both `### Review: Phase N` (C.3, final round with PASS verdict) and a functional acceptance log (C.4) for this phase. If either is missing, go back and complete them. A phase CANNOT be marked COMPLETE without both artifacts.
 - Mark the phase as COMPLETE in the plan document.
 - Update progress with timestamp and results.
 - Proceed to the next phase without pausing (RULE 2).
@@ -187,6 +193,7 @@ If an issue is deemed unsolvable after exhausting the escalation protocol (RULE 
 3. Mark the plan `Status: COMPLETED`.
 4. Write a summary entry in progress.
 5. Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/check-doc-format.sh` to validate documentation.
+6. **Immediately proceed to RULE 7** — do NOT stop here. META-PHASE D completion is not the end of the workflow. RULE 7 determines the next task.
 
 ---
 
@@ -317,23 +324,29 @@ When any document exceeds approximately 500 lines:
 
 ## RULE 7: Autonomous Task Planning
 
-When all phases in the current plan are complete, or when no explicit next-step instruction is available:
+This rule is triggered automatically after META-PHASE D step 6. It is NOT optional — do not stop or ask the user what to do next. Execute this rule immediately.
 
-1. **Assess current state**: scan all documents in `docs/`:
-   - Completed phases and their results.
-   - Issues with status `IN-PROGRESS` or `BLOCKED`.
-   - Findings marked `[UNVERIFIED]`.
-   - Any dependencies that have been unblocked.
+**Step 1: Assess current state.** Scan all documents in `docs/`:
+- Issues with status `IN-PROGRESS` or `BLOCKED` in `docs/issue/`
+- Findings marked `[UNVERIFIED]` across all documents
+- Phases in other plan files that are still PENDING
+- Dependencies that have been unblocked by the just-completed work
 
-2. **Prioritize**: rank potential next tasks by:
-   - Blocking severity: tasks that unblock other work take precedence.
-   - Impact scope: issues affecting multiple components over isolated ones.
-   - Urgency: `BLOCKED` issues that now have a viable path forward.
-   - Verification debt: accumulated `[UNVERIFIED]` findings.
+**Step 2: Determine if there is a next task.** If any of the following exist, there IS a next task:
+- Unresolved issues (IN-PROGRESS or BLOCKED)
+- Unverified findings
+- Pending phases in active plans
+- Known work items from the user's original task description
 
-3. **Plan and execute**: create a new plan document for the selected task (following META-PHASE A → B flow) and continue execution (RULE 2).
+If none of the above exist, report completion to the user and stop.
 
-4. **Stop hook integration**: when a plan is marked `COMPLETED`, the `Stop` hook outputs non-blocking reminders about unresolved issues and unverified findings. Use these reminders to inform the next task selection.
+**Step 3: Prioritize.** Rank candidates by:
+- Blocking severity: tasks that unblock other work take precedence
+- Impact scope: issues affecting multiple components over isolated ones
+- Urgency: BLOCKED issues that now have a viable path forward
+- Verification debt: accumulated [UNVERIFIED] findings
+
+**Step 4: Plan and execute.** Create a new plan document for the selected task (following META-PHASE A → B flow) and continue execution (RULE 2). Do not pause between the completed plan and the new plan.
 
 ---
 
@@ -344,14 +357,14 @@ When all phases in the current plan are complete, or when no explicit next-step 
 2. META-PHASE A: create plan with phases and expected results
 3. META-PHASE B: review and refine plan (direct edits allowed)
 4. META-PHASE C: for each phase:
-   a. Pre-Phase: re-read plan
-   b. Execute
-   c. Review implementation
-   d. Functional acceptance (RULE 4)
-   e. If FAIL: debug (RULE 5, which also follows RULE 3+4 for fixes)
-   f. If PASS: mark complete, update progress, next phase
+   a. Pre-Phase: re-read plan, restate expected results
+   b. Execute (record findings as they occur)
+   c. Review: expected-vs-actual table → FAIL/PARTIAL items recorded as issues
+   d. Fix issues → re-review (iterate until all PASS)
+   e. Functional acceptance (RULE 4)
+   f. Mark complete (only with review + acceptance artifacts)
 5. META-PHASE D: final review, mark plan COMPLETED
-6. RULE 7: assess state, plan next task, continue
+6. RULE 7: assess state → plan next task → continue (mandatory, do not stop)
 ```
 
 Begin now.
