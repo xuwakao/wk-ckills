@@ -32,6 +32,29 @@ This project targets commercial release. Every implementation decision must prio
 
 This principle takes precedence in all phases: planning (choose robust approaches), implementation (write production code), review (reject naive solutions), and debugging (fix properly, not minimally).
 
+## Mandatory Status Banner
+
+Every response you produce while the /forge workflow is active MUST begin with this banner as the very first line(s):
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.M|D|RULE7> · issues=<open> · findings=<count>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Field rules:
+- `plan` = filename of the currently active plan in `docs/plan/` (without `.md`)
+- `phase` = current phase number / total phase count from the plan
+- `meta` = current meta-phase: `A`, `B`, `C.1`, `C.2`, `C.3`, `C.4`, `C.5`, `D`, or `RULE7`
+- `issues` = count of issues with status `IN-PROGRESS` or `BLOCKED` in `docs/issue/`
+- `findings` = total count of `### F-NNN:` entries across all docs
+
+If you do not know a value (e.g., before reading the plan), use `?` for that field. Do NOT skip the banner.
+
+The banner is a proof-of-life signal. If it is missing from a response, the user will assume the workflow has been forgotten and will re-invoke /forge. The banner is non-negotiable in every response, including short replies, error messages, and tool result summaries.
+
+The banner is required only when forge is active (`.forge-counter` exists in the project). If forge has been deactivated or marked PAUSED/COMPLETED, omit the banner.
+
 ## Task
 
 $ARGUMENTS

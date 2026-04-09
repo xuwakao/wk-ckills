@@ -1,5 +1,11 @@
 [/forge workflow rules — periodic refresh]
 
+MANDATORY BANNER: Every response while forge is active MUST start with:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.M|D|RULE7> · issues=<open> · findings=<count>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Missing banner = drift detected. The user will re-invoke /forge. Banner is required in every response, no exceptions.
+
 0. PRODUCTION QUALITY: Do NOT default to "simplest correct." Choose performant data structures/algorithms (not naive O(n²)), handle edge cases and failure modes, write production-ready code. Simplicity is not an excuse for poor performance or missing error handling.
 
 1. SELF-MONITORING: Re-read the active plan file before each phase. If unsure about rules, re-read SKILL.md at ${CLAUDE_PLUGIN_ROOT}/skills/forge/SKILL.md.
