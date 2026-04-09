@@ -14,7 +14,7 @@
 
 4. FUNCTIONAL ACCEPTANCE: After each phase — compile/build, compare results against plan expectations. PASS → continue. FAIL → record issue, fix, re-review.
 
-5. DEBUGGING DISCIPLINE: No workarounds. Diagnose root cause before fixing (exception: debug logs). Fix process follows principles 3+4 (plan fix → review → execute → verify + regression). Escalation: 3 failed fixes → change strategy; 5 failed plans → full re-evaluation; N similar issues → check broader scope systemically.
+5. DEBUGGING DISCIPLINE: No workarounds. STRUCTURED DIAGNOSIS — every issue requires a Diagnosis table with min 2 hypotheses, each with concrete verification method (exact command/log/code path) and verification result. Root cause requires CONFIRMED status from a verified hypothesis. Suspicion is NOT verification. Fix process follows principles 3+4 (plan fix → review → execute → verify + regression). Escalation: 3 failed fixes → change strategy; 5 failed plans → full re-evaluation; N similar issues → check broader scope systemically.
 
 6. DOCUMENTATION + FINDINGS: Update docs/progress/ and docs/issue/ continuously. Formal technical language only. All claims require verifiable sources. Mark unverified content [UNVERIFIED]. Use /git-commit for commits. ACTIVELY RECORD FINDINGS during implementation and debugging. Empty Findings sections are a sign of skipped recording. Phase review must note findings count.
 

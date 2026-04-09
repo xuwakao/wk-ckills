@@ -31,8 +31,17 @@ Created: {{TIMESTAMP}}
   **Expected**: What should have happened
 
   #### Diagnosis
-  **Root Cause**: (once determined; mark [UNVERIFIED] if hypothesis)
-  **Evidence**: Source file paths, command outputs, log excerpts
+
+  **Symptom (precise)**: [exact error message + reproduction steps]
+
+  **Hypotheses** (minimum 2 — list alternatives across different layers/components):
+
+  | # | Hypothesis | Verification Method | Verification Result | Status |
+  |---|------------|---------------------|---------------------|--------|
+  | H1 | [specific cause] | [exact command/log query/code path to check] | [actual output] | CONFIRMED/REJECTED/INCONCLUSIVE |
+  | H2 | [alternative cause] | ... | ... | ... |
+
+  **Root Cause**: [must reference the H# marked CONFIRMED, with verification evidence]
 
   #### Fix Attempts
   1. [timestamp] **Attempt**: Description of fix

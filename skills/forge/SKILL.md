@@ -240,11 +240,38 @@ After each phase implementation (META-PHASE C.4):
 
 ### 5b. Diagnose Before Fixing
 
-Sequence: observe symptom → form hypothesis → gather evidence → confirm root cause → fix.
+Diagnosis must be **structured and verified**, not a single guess. Every issue requires a Diagnosis section in the issue document with this exact format:
 
-- The only exception: adding debug logging is permitted before diagnosis is complete.
-- Do not guess at fixes. If a fix is attempted without confirmed root cause, it is a guess.
-- **Record findings during diagnosis.** Debugging is a discovery-intensive process. Every non-obvious insight about the system's behavior, error patterns, dependency interactions, or API quirks encountered during diagnosis must be recorded as a finding in the issue or progress document. These findings are valuable even if the current issue is resolved — they inform future work.
+```
+#### Diagnosis
+
+**Symptom (precise)**: [exact error message, observed behavior, and reproduction steps]
+
+**Hypotheses**:
+| # | Hypothesis | Verification Method | Verification Result | Status |
+|---|------------|---------------------|---------------------|--------|
+| H1 | [specific cause being proposed] | [exact command, log query, code path inspection — what action will prove or disprove this] | [actual output of running the verification] | CONFIRMED / REJECTED / INCONCLUSIVE |
+| H2 | [alternative cause] | ... | ... | ... |
+| H3 | [another alternative] | ... | ... | ... |
+
+**Root Cause**: [must reference the H# that was CONFIRMED, with the verification evidence]
+```
+
+Mandatory rules:
+
+1. **Minimum 2 hypotheses.** A single hypothesis is a guess, not a diagnosis. Force yourself to consider alternatives — different layers (application/library/OS), different components, different timing.
+2. **Each hypothesis must have a concrete verification method** — an actual command to run, log line to grep, value to inspect, or code path to read. "Check the code" is not a verification method. "Run `cargo test --lib foo -- --nocapture` and check output for X" is.
+3. **Run the verification before declaring status.** CONFIRMED requires evidence in the "Verification Result" cell. REJECTED requires evidence that the hypothesis is wrong. INCONCLUSIVE means the verification was attempted but did not conclusively prove or disprove — must be followed by a different verification method or a new hypothesis.
+4. **Root cause requires CONFIRMED status.** A hypothesis with INCONCLUSIVE or no verification cannot be declared as root cause. If all hypotheses are REJECTED or INCONCLUSIVE, generate new hypotheses and verify them.
+5. **No fixes before CONFIRMED root cause.** The only exception: adding debug logging or instrumentation to enable verification is permitted.
+
+**Anti-patterns explicitly forbidden:**
+- Listing one hypothesis and immediately marking it CONFIRMED without verification.
+- Writing vague verification methods like "investigate" or "check" without specifying what action.
+- Skipping the verification result cell.
+- Declaring root cause based on "this looks suspicious" — suspicion is a hypothesis, not a verification.
+
+**Record findings during diagnosis.** Debugging is a discovery-intensive process. Every non-obvious insight encountered during diagnosis must be recorded as a finding in the issue or progress document. These findings are valuable even if the current issue is resolved.
 
 ### 5c. Diagnostic Tools
 
