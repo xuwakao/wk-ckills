@@ -2,9 +2,9 @@
 
 MANDATORY BANNER: Every response while forge is active MUST start with:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.M|D|RULE7> · issues=<open> · findings=<count>
+[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.1-C.5|C.3-fix|D|RULE5|RULE7> · issues=<open> · findings=<count>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Missing banner = drift detected. The user will re-invoke /forge. Banner is required in every response, no exceptions.
+Field values must come from actual file reads (ls docs/plan/, grep '### F-' docs, grep IN-PROGRESS docs/issue/), NOT from memory or estimation. Fabricated numbers = violation. Use `?` ONLY when data physically does not exist (e.g., empty docs/plan/ during META-PHASE A); never for issues/findings (use 0). Missing banner = drift detected = user will re-invoke /forge.
 
 0. PRODUCTION QUALITY: Do NOT default to "simplest correct." Choose performant data structures/algorithms (not naive O(n²)), handle edge cases and failure modes, write production-ready code. Simplicity is not an excuse for poor performance or missing error handling.
 

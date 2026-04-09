@@ -38,22 +38,54 @@ Every response you produce while the /forge workflow is active MUST begin with t
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.M|D|RULE7> · issues=<open> · findings=<count>
+[/forge] plan=<name> · phase=<N>/<total> · meta=<state> · issues=<open> · findings=<count>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-Field rules:
-- `plan` = filename of the currently active plan in `docs/plan/` (without `.md`)
-- `phase` = current phase number / total phase count from the plan
-- `meta` = current meta-phase: `A`, `B`, `C.1`, `C.2`, `C.3`, `C.4`, `C.5`, `D`, or `RULE7`
-- `issues` = count of issues with status `IN-PROGRESS` or `BLOCKED` in `docs/issue/`
-- `findings` = total count of `### F-NNN:` entries across all docs
+### Field definitions
 
-If you do not know a value (e.g., before reading the plan), use `?` for that field. Do NOT skip the banner.
+- `plan` = filename of the currently active plan in `docs/plan/` (without `.md`). If multiple plans are ACTIVE, use the most recently modified one.
+- `phase` = current phase number / total phase count, parsed from the plan's `### Phase N:` headers.
+- `meta` = exactly one of: `A` (planning), `B` (plan-review), `C.1` (pre-phase), `C.2` (execute), `C.3` (review), `C.3-fix` (iterating fixes during multi-round review), `C.4` (acceptance), `C.5` (post-phase), `D` (completion), `RULE5` (debugging), `RULE7` (autonomous planning).
+- `issues` = count of issues with status `IN-PROGRESS` or `BLOCKED` across all files in `docs/issue/`.
+- `findings` = total count of `### F-NNN:` headers across all files in `docs/`.
 
-The banner is a proof-of-life signal. If it is missing from a response, the user will assume the workflow has been forgotten and will re-invoke /forge. The banner is non-negotiable in every response, including short replies, error messages, and tool result summaries.
+### How to obtain field values
 
-The banner is required only when forge is active (`.forge-counter` exists in the project). If forge has been deactivated or marked PAUSED/COMPLETED, omit the banner.
+Field values **must be obtained from actual file reads**, not from memory or estimation. If you have not read these files in the recent context, run a quick verification before responding:
+
+```bash
+# Get all values in one shot
+ls docs/plan/ 2>/dev/null
+grep -c '### F-' docs/**/*.md 2>/dev/null || echo 0
+grep -rE '(IN-PROGRESS|BLOCKED)' docs/issue/ 2>/dev/null | wc -l
+```
+
+Inventing or estimating field values is a violation. A banner with fabricated numbers is worse than no banner — it gives a false signal of compliance.
+
+### When `?` is permitted
+
+You may use `?` for a field **only** when the underlying data physically does not exist:
+- `plan=?` — only if `docs/plan/` is empty (no plan created yet, e.g., during META-PHASE A before writing the plan)
+- `phase=?` — only if no phases have been written yet
+- `issues=?` — never; if `docs/issue/` is empty, the value is `0`, not `?`
+- `findings=?` — never; if there are no findings, the value is `0`, not `?`
+- `meta` — never; you always know which meta-phase you are in
+
+Filling `?` to skip the work of reading files is a violation.
+
+### Banner enforcement
+
+The banner is a **proof-of-life signal**. Its presence tells the user: "I have just read the plan/issue/findings files and I know exactly where I am in the workflow." Its absence tells the user: "I have forgotten the workflow."
+
+The banner is required:
+- In every response while `.forge-counter` exists in the project
+- Including short replies, error messages, and tool result summaries
+- Including responses that only contain tool calls — the banner goes before the first tool call's narration text
+
+The banner is NOT required:
+- When `.forge-counter` does not exist (forge is not active in this project)
+- When the active plan's status is `PAUSED`, `COMPLETED`, or `DEPRECATED`
 
 ## Task
 
