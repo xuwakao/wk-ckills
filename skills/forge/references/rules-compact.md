@@ -14,8 +14,12 @@ Field values must come from actual file reads (ls docs/plan/, grep '### F-' docs
 
 3. PHASED DEVELOPMENT: Follow META-PHASE A→B→C→D→RULE 7. CRITICAL:
    - Plan Review (META-PHASE B): MULTI-ROUND — write "### Plan Review" TABLE in progress (one row per phase: dependencies traced, expected results testable, feasibility with evidence, risks listed, stub/real marked). Each cell needs specific evidence, not "yes/fine/none". Draw dependency graph. FAIL/RISK → fix plan → re-review "### Plan Review (round M)". Repeat until all PASS.
-   - Phase Review (C.3): MULTI-ROUND — write "### Review: Phase N" with expected-vs-actual table. FAIL/PARTIAL items → record as issues in docs/issue/ → fix → re-review "### Review: Phase N (round M)". Repeat until ALL rows are PASS. Single-round review that ignores problems is a violation.
-   - A phase CANNOT be marked COMPLETE without a PASS review + functional acceptance artifacts.
+   - Phase Review C.3 has TWO PARTS — both required:
+     * C.3a Outcome: "### Review: Phase N — Outcome" — expected-vs-actual table.
+     * C.3b Code: "### Review: Phase N — Code" — read every modified file, fill table with columns Logic/Edge Cases/Error Handling/Performance/Production Quality/Workarounds/Style. Each cell needs a specific observation, not "ok".
+   - UNLIMITED ROUNDS: any FAIL or CONCERN in either review → record as issue → fix → re-review "(round M)". Repeat until BOTH reviews show zero FAIL and zero CONCERN. Every code change triggers a fresh review.
+   - A phase CANNOT be marked COMPLETE without BOTH C.3a + C.3b clean + functional acceptance.
+   - Bug fix process (RULE 5d) ALSO requires code review on the fix — apply same C.3b checklist, iterate until clean.
    Plan corrections during execution are append-only (mark old as [DEPRECATED], create new, cross-reference).
 
 4. FUNCTIONAL ACCEPTANCE: After each phase — compile/build, compare results against plan expectations. PASS → continue. FAIL → record issue, fix, re-review.

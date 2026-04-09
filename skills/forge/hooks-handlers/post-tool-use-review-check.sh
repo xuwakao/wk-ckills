@@ -47,20 +47,28 @@ for planfile in "$PLAN_DIR"/*.md; do
         # Match "**Status**: COMPLETE" or "Status: COMPLETE" patterns only
         if [ "$PHASE_NUM" -gt 0 ] && echo "$line" | grep -qiE '(\*\*)?Status(\*\*)?:\s*COMPLETE'; then
 
-            # Check 1: Review entry exists
-            if ! grep -q "### Review: Phase ${PHASE_NUM}" "$PROGRESS_FILE" 2>/dev/null; then
-                echo "ACTION REQUIRED: Phase ${PHASE_NUM} is marked COMPLETE in plan/${PLAN_NAME}.md but has no '### Review: Phase ${PHASE_NUM}' in progress/${PLAN_NAME}.md. Write the review entry with an expected-vs-actual table (PASS/FAIL verdicts + file path evidence) before marking COMPLETE."
-            else
-                # Check 2: Review has verdict table rows
-                REVIEW_SECTION=$(sed -n "/### Review: Phase ${PHASE_NUM}/,/^### /p" "$PROGRESS_FILE" 2>/dev/null | head -30 || true)
+            # Check 1a: Outcome Review entry exists
+            if ! grep -q "### Review: Phase ${PHASE_NUM} — Outcome" "$PROGRESS_FILE" 2>/dev/null; then
+                echo "ACTION REQUIRED: Phase ${PHASE_NUM} is marked COMPLETE in plan/${PLAN_NAME}.md but has no '### Review: Phase ${PHASE_NUM} — Outcome' in progress/${PLAN_NAME}.md. Write the C.3a outcome review table (expected vs actual) before marking COMPLETE."
+            fi
 
-                if ! echo "$REVIEW_SECTION" | grep -qE '\|\s*(PASS|FAIL|PARTIAL)'; then
-                    echo "ACTION REQUIRED: Review for Phase ${PHASE_NUM} in progress/${PLAN_NAME}.md has no PASS/FAIL/PARTIAL verdicts. Add a table with one row per expected result, each with a concrete verdict and evidence."
+            # Check 1b: Code Review entry exists
+            if ! grep -q "### Review: Phase ${PHASE_NUM} — Code" "$PROGRESS_FILE" 2>/dev/null; then
+                echo "ACTION REQUIRED: Phase ${PHASE_NUM} is marked COMPLETE in plan/${PLAN_NAME}.md but has no '### Review: Phase ${PHASE_NUM} — Code' in progress/${PLAN_NAME}.md. Write the C.3b code review table (logic/edge cases/error handling/performance/quality/workarounds/style) before marking COMPLETE."
+            fi
+
+            if grep -q "### Review: Phase ${PHASE_NUM}" "$PROGRESS_FILE" 2>/dev/null; then
+                # Extract relevant review sections
+                REVIEW_SECTION=$(sed -n "/### Review: Phase ${PHASE_NUM}/,/^### /p" "$PROGRESS_FILE" 2>/dev/null | head -60 || true)
+
+                # Check 2: Review has verdict table rows
+                if ! echo "$REVIEW_SECTION" | grep -qE '\|\s*(PASS|FAIL|PARTIAL|CONCERN)'; then
+                    echo "ACTION REQUIRED: Review for Phase ${PHASE_NUM} in progress/${PLAN_NAME}.md has no PASS/FAIL/PARTIAL/CONCERN verdicts. Add a table with one row per item, each with a concrete verdict and evidence."
                 fi
 
                 # Check 3: Review has Overall Verdict
                 if ! echo "$REVIEW_SECTION" | grep -qiE 'Overall\s+Verdict'; then
-                    echo "ACTION REQUIRED: Review for Phase ${PHASE_NUM} in progress/${PLAN_NAME}.md is missing an Overall Verdict line. Add '**Overall Verdict**: PASS' or '**Overall Verdict**: FAIL'."
+                    echo "ACTION REQUIRED: Review for Phase ${PHASE_NUM} in progress/${PLAN_NAME}.md is missing an Overall Verdict line."
                 fi
 
                 # Check 4: Check for vague evidence patterns

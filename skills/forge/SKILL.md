@@ -200,14 +200,18 @@ A one-line "review complete, no changes" is **never acceptable**. The table and 
   - Alternative approaches considered and rejected during implementation (with reason)
 - Record findings as they occur, not after the fact. Each finding: `### F-NNN: <title>` in the Findings section, referenced inline where relevant.
 
-#### C.3 Review
+#### C.3 Review (two parts: outcome + code)
 
-Produce a **Phase Review** entry in the progress document under `### Review: Phase N`. This entry is mandatory — a phase without a review entry cannot be marked COMPLETE. A PostToolUse hook will verify its presence.
+C.3 has two mandatory parts. **Both must be completed.** A phase without both review artifacts cannot be marked COMPLETE.
+
+##### C.3a — Outcome Review
+
+Produce a **Phase Outcome Review** entry in the progress document under `### Review: Phase N — Outcome`.
 
 The review MUST use this exact table format (one row per expected result from the plan):
 
 ```
-### Review: Phase N
+### Review: Phase N — Outcome
 
 | # | Expected Result | Actual Result | Evidence | Verdict |
 |---|-----------------|---------------|----------|---------|
@@ -224,16 +228,63 @@ Rules:
 - PARTIAL counts as FAIL for the overall verdict.
 - If any expected result was never executed at runtime, its verdict must be `PASS [UNVERIFIED]` with verification method noted.
 
-**Findings audit**: As part of the review, check whether any findings were recorded during C.2. If the Findings section is empty for this phase, ask: "Was nothing non-obvious discovered during implementation?" If genuinely nothing — acceptable but unusual for complex phases. If findings exist but were not recorded — record them now. The review entry should note the findings count: `**Findings this phase**: N (see [F-NNN], [F-NNN]...)` or `**Findings this phase**: 0 (no non-obvious discoveries)`.
+##### C.3b — Code Review
 
-**Review is iterative.** If any FAIL or PARTIAL is found during review:
-1. **Record each issue** in `docs/issue/<name>.md` with a new issue entry (ISS-NNN), status `IN-PROGRESS`, cross-referenced to `[plan/<name>#PhaseN]`. This ensures every problem is traceable.
-2. Fix the issue (following RULE 5 if it is a bug, or direct code correction if it is a quality/logic issue).
+Produce a **Phase Code Review** entry in the progress document under `### Review: Phase N — Code`.
+
+A passing outcome review (C.3a) does NOT mean the code is acceptable. Code can satisfy expected results yet contain hidden bugs, edge case failures, performance problems, workarounds, or quality issues. The code review reads the actual modified code and evaluates it independently.
+
+**Step 1**: enumerate all files modified or created during this phase. Use `git diff --name-only` (or `git status` if uncommitted) scoped to changes since the phase started.
+
+**Step 2**: read each modified file (or the relevant diff hunks for large files) and evaluate it against this checklist. Produce one row per file:
+
+```
+### Review: Phase N — Code
+
+| File | Logic | Edge Cases | Error Handling | Performance | Production Quality | Workarounds | Style | Verdict |
+|------|-------|------------|----------------|-------------|-------------------|-------------|-------|---------|
+| path/to/file.rs | [observation] | [observation] | [observation] | [observation] | [observation] | [observation] | [observation] | PASS/FAIL/CONCERN |
+
+**Files reviewed**: N
+**Overall Verdict**: PASS / FAIL
+```
+
+Column criteria (each cell must contain a specific observation, not "ok"):
+
+- **Logic**: is the implementation correct for all inputs the function is expected to handle? Check branches, loop bounds, off-by-one, null/empty cases.
+- **Edge Cases**: what happens at boundaries? Empty inputs, max values, concurrent access, resource exhaustion, partial failures. Cite specific edge cases considered.
+- **Error Handling**: are errors propagated, logged, and recoverable where appropriate? No silent catches, no `unwrap()`/`panic!()` on user input or fallible operations.
+- **Performance**: complexity analysis when non-trivial. Allocations in hot paths. Lock contention. Unnecessary copies. Reference Overriding Principle: production-grade, not "simplest correct".
+- **Production Quality**: maintainability, readability, naming, comments where logic is non-obvious. Code that a reviewer would accept in a release branch.
+- **Workarounds**: scan for `unwrap`, `unimplemented!()`, `todo!()`, commented-out code, `// TODO`, catch-and-ignore patterns, no-op stubs. Per RULE 5a, these are violations unless explicitly planned.
+- **Style**: consistency with existing code in the surrounding modules.
+
+Verdict per file:
+- **PASS**: no concerns in any column.
+- **CONCERN**: issues found that should be addressed but are not blockers (note them).
+- **FAIL**: issues found that violate Overriding Principle, RULE 5a, or contain bugs that break the expected results in scenarios not covered by the outcome review.
+
+A file marked CONCERN is acceptable only if a finding is recorded explaining the deferred work and a plan to address it. FAIL must be fixed before moving on.
+
+##### Findings audit
+
+As part of C.3 (after both reviews), check whether any findings were recorded during C.2. If the Findings section is empty for this phase, ask: "Was nothing non-obvious discovered during implementation?" If genuinely nothing — acceptable but unusual for complex phases. If findings exist but were not recorded — record them now. The review entry should note the findings count: `**Findings this phase**: N (see [F-NNN], [F-NNN]...)` or `**Findings this phase**: 0 (no non-obvious discoveries)`.
+
+##### C.3 is iterative — unlimited rounds
+
+C.3a and C.3b are not one-shot. **Every code change triggers a fresh review.** There is no maximum number of rounds.
+
+If any FAIL or CONCERN is found in either C.3a or C.3b:
+
+1. **Record each issue** in `docs/issue/<name>.md` with a new issue entry (ISS-NNN), status `IN-PROGRESS`, cross-referenced to `[plan/<name>#PhaseN]` and the specific file/line for code issues.
+2. Fix the issue (following RULE 5 if it is a bug, or direct code correction if it is a quality issue).
 3. Mark the issue as `RESOLVED` in the issue document with resolution details.
-4. Re-run C.3 Review — produce a new review entry `### Review: Phase N (round M)` with a fresh expected-vs-actual table.
-5. Repeat until the overall verdict is PASS with zero FAIL/PARTIAL rows.
+4. Re-run **both** C.3a and C.3b — produce new review entries `### Review: Phase N — Outcome (round M)` and `### Review: Phase N — Code (round M)`. Increment M with each round.
+5. Repeat steps 1–4 until both reviews have Overall Verdict PASS with **zero FAIL and zero CONCERN** items.
 
-Only when overall verdict is PASS with no outstanding issues → proceed to C.4.
+The loop terminates only on a clean review, never on round count. If you find yourself in many rounds (5+), that is a signal to apply RULE 5e (escalation) — the implementation approach may need to change.
+
+Only when both C.3a and C.3b are clean (PASS, no FAIL, no CONCERN) → proceed to C.4.
 
 #### C.4 Functional Acceptance (RULE 4)
 - Execute the acceptance procedure defined in RULE 4.
@@ -241,7 +292,12 @@ Only when overall verdict is PASS with no outstanding issues → proceed to C.4.
 - If FAIL: record issue in `docs/issue/`, fix, then re-run C.3 Review (iterative loop).
 
 #### C.5 Post-Phase
-- **Pre-condition**: verify that progress contains both `### Review: Phase N` (C.3, final round with PASS verdict) and a functional acceptance log (C.4) for this phase. If either is missing, go back and complete them. A phase CANNOT be marked COMPLETE without both artifacts.
+- **Pre-condition**: verify that progress contains ALL of the following for this phase:
+  1. `### Review: Phase N — Outcome` (C.3a, final round with PASS verdict)
+  2. `### Review: Phase N — Code` (C.3b, final round with PASS verdict)
+  3. A functional acceptance log (C.4)
+
+  If any of these are missing, go back and complete them. A phase CANNOT be marked COMPLETE without all three artifacts.
 - Mark the phase as COMPLETE in the plan document.
 - Update progress with timestamp and results.
 - Proceed to the next phase without pausing (RULE 2).
@@ -345,8 +401,9 @@ After root cause is confirmed:
 1. Formulate a fix plan (record in the issue document, or append a fix phase to the plan).
 2. Review the fix plan for correctness and completeness.
 3. Implement the fix.
-4. Review the implementation.
-5. Functional acceptance: build passes + fix verified + regression check (no new issues introduced).
+4. **Code review the fix** — apply the C.3b Code Review checklist (logic, edge cases, error handling, performance, production quality, workarounds, style) to the modified files. Produce a `### Code Review: ISS-NNN (round M)` table in the issue document.
+5. **Iterate** — if any column shows a concern or FAIL, fix and re-review. Code review is **unlimited rounds**: every code change triggers a fresh review, and reviews continue until the table has zero concerns and zero FAIL items.
+6. Functional acceptance: build passes + fix verified + regression check (no new issues introduced).
 
 ### 5e. Escalation Protocol
 
