@@ -57,6 +57,18 @@ for planfile in "$PLAN_DIR"/*.md; do
                 echo "ACTION REQUIRED: Phase ${PHASE_NUM} is marked COMPLETE in plan/${PLAN_NAME}.md but has no '### Review: Phase ${PHASE_NUM} — Code' in progress/${PLAN_NAME}.md. Write the C.3b code review table (logic/edge cases/error handling/performance/quality/workarounds/style) before marking COMPLETE."
             fi
 
+            # Check 1c: Code Review Investigation section exists (evidence of actual investigation)
+            if grep -q "### Review: Phase ${PHASE_NUM} — Code" "$PROGRESS_FILE" 2>/dev/null; then
+                if ! grep -q "### Review: Phase ${PHASE_NUM} — Code · Investigation" "$PROGRESS_FILE" 2>/dev/null; then
+                    echo "ACTION REQUIRED: C.3b Code Review for Phase ${PHASE_NUM} has no '### Review: Phase ${PHASE_NUM} — Code · Investigation' section. Per C.3b Stage 1, the investigation log (listing files read, anti-pattern scans, error scans, test outputs) must be written BEFORE the review table."
+                fi
+                # Check that evidence cells reference [investigation: ...]
+                CODE_REVIEW_SECTION=$(sed -n "/### Review: Phase ${PHASE_NUM} — Code$/,/^### /p" "$PROGRESS_FILE" 2>/dev/null | head -40 || true)
+                if [ -n "$CODE_REVIEW_SECTION" ] && ! echo "$CODE_REVIEW_SECTION" | grep -q 'investigation:'; then
+                    echo "ACTION REQUIRED: C.3b Code Review table for Phase ${PHASE_NUM} has no [investigation: ...] references in its cells. Each cell must cite the Investigation Log entry that backs the observation, otherwise the review was written without investigation."
+                fi
+            fi
+
             if grep -q "### Review: Phase ${PHASE_NUM}" "$PROGRESS_FILE" 2>/dev/null; then
                 # Extract relevant review sections
                 REVIEW_SECTION=$(sed -n "/### Review: Phase ${PHASE_NUM}/,/^### /p" "$PROGRESS_FILE" 2>/dev/null | head -60 || true)

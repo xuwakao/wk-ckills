@@ -230,39 +230,97 @@ Rules:
 
 ##### C.3b — Code Review
 
-Produce a **Phase Code Review** entry in the progress document under `### Review: Phase N — Code`.
+A passing outcome review (C.3a) does NOT mean the code is acceptable. Code can satisfy expected results yet contain hidden bugs, edge case failures, performance problems, workarounds, or quality issues.
 
-A passing outcome review (C.3a) does NOT mean the code is acceptable. Code can satisfy expected results yet contain hidden bugs, edge case failures, performance problems, workarounds, or quality issues. The code review reads the actual modified code and evaluates it independently.
+**C.3b is a two-stage process: investigate first, then report.** The review table comes LAST, not first. Writing the table without doing the investigation is a violation — the evidence cells will be fabricated.
 
-**Step 1**: enumerate all files modified or created during this phase. Use `git diff --name-only` (or `git status` if uncommitted) scoped to changes since the phase started.
+###### Stage 1 — Investigation (must be completed before Stage 2)
 
-**Step 2**: read each modified file (or the relevant diff hunks for large files) and evaluate it against this checklist. Produce one row per file:
+Produce an **Investigation Log** in the progress document under `### Review: Phase N — Code · Investigation`. The log records every concrete action taken to examine the code. Each entry must reference a real tool call made BEFORE writing this section.
+
+Required investigation actions per modified file:
+
+1. **Enumerate changes** (once per review round):
+   - Tool call: `git diff --name-only HEAD~<N>..HEAD` or `git status`
+   - Record: exact command output listing changed files
+
+2. **Read the file** (or diff hunks for files >500 lines):
+   - Tool call: `Read` on each file in full, or `Bash: git diff <ref> -- <file>` for diff-only review
+   - Record: file path + total lines read + line ranges if partial
+
+3. **Anti-pattern scan** (specific greps, not eyeballing):
+   - Tool call: `Grep -n -E 'unwrap\(\)|\.expect\(|unimplemented!|todo!|panic!\(|# TODO|// TODO' <file>`
+   - Record: exact output (matches or "no matches")
+
+4. **Error path scan**:
+   - Tool call: `Grep -n -E 'catch|rescue|except|if err|\?' <file>` (adjust regex per language)
+   - Record: exact output; for each match, note whether it propagates/logs/ignores
+
+5. **Complexity probes** (for non-trivial code):
+   - Tool call: `Grep -n -E 'for.*in|while|loop' <file>` to locate loops, then read each loop's context
+   - Record: identified hot paths and their complexity (traced, not guessed)
+
+6. **Edge-case execution** (when tests exist):
+   - Tool call: run the test command (e.g., `cargo test --lib <name> -- --nocapture`, `pytest -v -k <name>`)
+   - Record: exact test output
+
+Format the Investigation Log as:
+
+```
+### Review: Phase N — Code · Investigation
+
+#### Changed files
+Command: `git diff --name-only ...`
+Output:
+  path/a.rs
+  path/b.rs
+
+#### path/a.rs
+- Read: full file, 243 lines
+- Anti-pattern scan: `Grep -n -E '...' path/a.rs` → no matches
+- Error path scan: 4 matches at lines 17, 52, 89, 134; propagation traced (see notes)
+- Loops: 1 loop at line 102–118, complexity O(n) where n = input vec size
+- Tests: `cargo test --lib foo` → 3 passed, 0 failed (output: ...)
+
+#### path/b.rs
+...
+```
+
+The Investigation Log must be written BEFORE Stage 2 and reference actual tool call outputs. If an action was not performed, the corresponding entry must say "NOT PERFORMED — reason: ..." rather than being omitted or faked.
+
+###### Stage 2 — Report Table
+
+Only after the Investigation Log is complete, produce the **Phase Code Review** entry under `### Review: Phase N — Code`.
+
+Every evidence cell must reference a specific entry from the Investigation Log. Format: `[investigation: <file-section> · <action>]` followed by the observation.
 
 ```
 ### Review: Phase N — Code
 
 | File | Logic | Edge Cases | Error Handling | Performance | Production Quality | Workarounds | Style | Verdict |
 |------|-------|------------|----------------|-------------|-------------------|-------------|-------|---------|
-| path/to/file.rs | [observation] | [observation] | [observation] | [observation] | [observation] | [observation] | [observation] | PASS/FAIL/CONCERN |
+| path/a.rs | [investigation: a.rs · Read] traced fn foo: branches at L17 handle empty vec; L52 handles >MAX | [investigation: a.rs · tests] boundary test for empty input passed at L103 of test output | [investigation: a.rs · error scan] all 4 error sites propagate via `?` | [investigation: a.rs · loops] O(n) single-pass, no nested loops, no allocations in loop body | naming consistent with sibling mod, no magic numbers | [investigation: a.rs · anti-pattern scan] 0 matches | consistent with surrounding modules (verified by reading 2 sibling files) | PASS |
 
 **Files reviewed**: N
 **Overall Verdict**: PASS / FAIL
 ```
 
-Column criteria (each cell must contain a specific observation, not "ok"):
+Column criteria (each cell MUST reference the investigation and contain a specific observation):
 
-- **Logic**: is the implementation correct for all inputs the function is expected to handle? Check branches, loop bounds, off-by-one, null/empty cases.
-- **Edge Cases**: what happens at boundaries? Empty inputs, max values, concurrent access, resource exhaustion, partial failures. Cite specific edge cases considered.
-- **Error Handling**: are errors propagated, logged, and recoverable where appropriate? No silent catches, no `unwrap()`/`panic!()` on user input or fallible operations.
-- **Performance**: complexity analysis when non-trivial. Allocations in hot paths. Lock contention. Unnecessary copies. Reference Overriding Principle: production-grade, not "simplest correct".
-- **Production Quality**: maintainability, readability, naming, comments where logic is non-obvious. Code that a reviewer would accept in a release branch.
-- **Workarounds**: scan for `unwrap`, `unimplemented!()`, `todo!()`, commented-out code, `// TODO`, catch-and-ignore patterns, no-op stubs. Per RULE 5a, these are violations unless explicitly planned.
-- **Style**: consistency with existing code in the surrounding modules.
+- **Logic**: trace through the function using the code read in Stage 1. Cite specific branches/lines. "Looks correct" is not acceptable.
+- **Edge Cases**: cite the specific boundary conditions examined and their behavior. If tests exist, cite test outputs; if not, cite the code path for each boundary.
+- **Error Handling**: cite the error scan results. State whether each error path propagates, logs, or is ignored. No silent catches.
+- **Performance**: cite the complexity probe. State complexity (O-notation) with the specific loop/recursion that determines it. Allocations, locks, copies identified by reading the code.
+- **Production Quality**: maintainability concerns, naming, missing documentation on non-obvious logic. Cite specific lines.
+- **Workarounds**: cite the anti-pattern scan output. Zero matches or justified matches (planned stubs with cross-reference) are acceptable.
+- **Style**: cite sibling files/modules examined to verify consistency.
+
+**Cells without investigation references are invalid.** A cell saying "logic is correct" without `[investigation: ...]` means the investigation was skipped — treat as FAIL.
 
 Verdict per file:
-- **PASS**: no concerns in any column.
-- **CONCERN**: issues found that should be addressed but are not blockers (note them).
-- **FAIL**: issues found that violate Overriding Principle, RULE 5a, or contain bugs that break the expected results in scenarios not covered by the outcome review.
+- **PASS**: every column has a concrete observation backed by the investigation, and no concerns were found.
+- **CONCERN**: issues identified by the investigation that should be addressed but are not blockers (note them in a finding).
+- **FAIL**: investigation revealed issues that violate Overriding Principle, RULE 5a, or bugs not covered by the outcome review.
 
 A file marked CONCERN is acceptable only if a finding is recorded explaining the deferred work and a plan to address it. FAIL must be fixed before moving on.
 
