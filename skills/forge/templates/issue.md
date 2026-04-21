@@ -30,18 +30,34 @@ Created: {{TIMESTAMP}}
   **Symptom**: Precise description of observed behavior
   **Expected**: What should have happened
 
-  #### Diagnosis
+  #### Diagnosis · Investigation (Stage 1 — runs BEFORE hypotheses)
+
+  **Failing code path**:
+  - Grep: `<command>` → [output]
+  - Read: [file:lines]
+
+  **Runtime behavior** (debugger / logs / trace / instrumentation):
+  - [tool]: [command] → [exact output]
+  - [tool]: [command] → [exact output]
+
+  **Related code / dependencies / history**:
+  - Read: [file:lines] — [what it does]
+  - `git log -p` / `git blame`: [findings]
+
+  #### Diagnosis (Stage 2 — hypotheses informed by investigation)
 
   **Symptom (precise)**: [exact error message + reproduction steps]
 
-  **Hypotheses** (minimum 2 — list alternatives across different layers/components):
+  **Investigation summary**: [one line referencing what the actual code/runtime revealed]
 
-  | # | Hypothesis | Verification Method | Verification Result | Status |
-  |---|------------|---------------------|---------------------|--------|
-  | H1 | [specific cause] | [exact command/log query/code path to check] | [actual output] | CONFIRMED/REJECTED/INCONCLUSIVE |
+  **Hypotheses** (minimum 2 — grounded in the investigation above):
+
+  | # | Hypothesis | Verification Method (runtime, not code-reading) | Verification Result | Status |
+  |---|------------|------------------------------------------------|---------------------|--------|
+  | H1 | [specific cause, informed by investigation] | [lldb command / log grep / trace filter / reproduction run] | [exact output] | CONFIRMED/REJECTED/INCONCLUSIVE |
   | H2 | [alternative cause] | ... | ... | ... |
 
-  **Root Cause**: [must reference the H# marked CONFIRMED, with verification evidence]
+  **Root Cause**: [must reference the H# marked CONFIRMED, with runtime verification evidence. If no hypothesis CONFIRMED after 2 investigation iterations → mark issue BLOCKED and stop.]
 
   #### Fix Attempts
   1. [timestamp] **Attempt**: Description of fix

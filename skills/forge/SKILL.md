@@ -409,49 +409,101 @@ After each phase implementation (META-PHASE C.4):
 
 ### 5b. Diagnose Before Fixing
 
-Diagnosis must be **structured and verified**, not a single guess. Every issue requires a Diagnosis section in the issue document with this exact format:
+Diagnosis is a two-stage process: **investigate the real code first, then generate and verify hypotheses**. Skipping straight to hypotheses from the symptom alone is guessing, not diagnosis.
+
+###### Stage 1 — Code & Runtime Investigation (before hypotheses)
+
+Before proposing any hypothesis, investigate the actual system. Record every action in an **Investigation Log** in the issue document under `#### Diagnosis · Investigation`.
+
+Required actions (perform the ones applicable to the bug):
+
+1. **Locate the failing code path**:
+   - Tool call: `Grep` for the exact error message / symptom string across the codebase
+   - Tool call: `Read` every file along the call chain leading to the failure
+   - Record: exact file paths and line numbers of the suspect code
+
+2. **Examine runtime behavior with debugging tools** (not just reading):
+   - **Logs**: read the actual error logs/stdout/stderr. Grep for surrounding context. Record: exact log excerpts.
+   - **Debugger (lldb/gdb/equivalent)**: set breakpoints at the failing code, inspect variable state at the failure point. Record: exact backtrace + variable values.
+   - **Tracing (strace/dtrace/truss)**: when the failure involves syscalls, I/O, or system boundaries. Record: relevant syscall outputs.
+   - **Instrumentation**: add targeted debug prints/logs that capture the exact values/state at the decision points. Record: output of the instrumented run.
+   - **Reproduction**: construct a minimal reproduction command and confirm the symptom reproduces. Record: exact command + output.
+
+3. **Examine the related code layer(s)**:
+   - Tool call: `Read` upstream callers and downstream callees
+   - Tool call: `Read` the actual dependency/library source (not documentation — source) for any external calls involved
+   - Tool call: `git log -p <file>` or `git blame <file>` for recent changes in the failing area
+   - Record: what each layer does and where the state deviates from expectation
+
+The Investigation Log must contain the exact tool outputs, not summaries. A log that says "examined the code" without citations means no investigation was done.
+
+###### Stage 2 — Structured Hypothesis Verification
+
+Only after Stage 1 is complete, generate hypotheses **informed by the investigation**. Write a `#### Diagnosis` section with this format:
 
 ```
 #### Diagnosis
 
 **Symptom (precise)**: [exact error message, observed behavior, and reproduction steps]
 
+**Investigation summary**: [one line referencing the Investigation Log above — what did the actual code/runtime reveal?]
+
 **Hypotheses**:
 | # | Hypothesis | Verification Method | Verification Result | Status |
 |---|------------|---------------------|---------------------|--------|
-| H1 | [specific cause being proposed] | [exact command, log query, code path inspection — what action will prove or disprove this] | [actual output of running the verification] | CONFIRMED / REJECTED / INCONCLUSIVE |
+| H1 | [specific cause, informed by investigation] | [actual tool-level verification: lldb command, log grep, trace filter, reproduction step — NOT "read the code"] | [exact output of running the verification] | CONFIRMED / REJECTED / INCONCLUSIVE |
 | H2 | [alternative cause] | ... | ... | ... |
-| H3 | [another alternative] | ... | ... | ... |
 
 **Root Cause**: [must reference the H# that was CONFIRMED, with the verification evidence]
 ```
 
 Mandatory rules:
 
-1. **Minimum 2 hypotheses.** A single hypothesis is a guess, not a diagnosis. Force yourself to consider alternatives — different layers (application/library/OS), different components, different timing.
-2. **Each hypothesis must have a concrete verification method** — an actual command to run, log line to grep, value to inspect, or code path to read. "Check the code" is not a verification method. "Run `cargo test --lib foo -- --nocapture` and check output for X" is.
-3. **Run the verification before declaring status.** CONFIRMED requires evidence in the "Verification Result" cell. REJECTED requires evidence that the hypothesis is wrong. INCONCLUSIVE means the verification was attempted but did not conclusively prove or disprove — must be followed by a different verification method or a new hypothesis.
-4. **Root cause requires CONFIRMED status.** A hypothesis with INCONCLUSIVE or no verification cannot be declared as root cause. If all hypotheses are REJECTED or INCONCLUSIVE, generate new hypotheses and verify them.
-5. **No fixes before CONFIRMED root cause.** The only exception: adding debug logging or instrumentation to enable verification is permitted.
+1. **Minimum 2 hypotheses.** Force alternatives across different layers (application/library/OS), different components, different timing.
+2. **Hypotheses must be grounded in the investigation.** If a hypothesis does not cite the Investigation Log, it is a guess — reject it.
+3. **Verification methods must be runtime-level, not code-reading.** Running the code with instrumentation, attaching a debugger, grepping real logs, or executing a reproduction — these are verifications. "Read the function again" is not; the code was already read in Stage 1.
+4. **Run the verification before declaring status.** CONFIRMED requires runtime evidence. REJECTED requires runtime evidence the hypothesis is wrong. INCONCLUSIVE means the verification was attempted but did not resolve — must be followed by a different runtime verification or a new hypothesis.
+5. **Root cause requires CONFIRMED status.** A hypothesis with INCONCLUSIVE or no verification cannot be root cause. If all hypotheses are REJECTED or INCONCLUSIVE, return to Stage 1 and deepen the investigation, then generate new hypotheses.
+6. **No fixes before CONFIRMED root cause.** The only exception: adding debug instrumentation to enable verification is permitted.
+
+**Stop condition — when no root cause can be verified:**
+
+If after two iterations of (Stage 1 → Stage 2) you cannot arrive at a CONFIRMED root cause:
+- STOP attempting fixes.
+- Mark the issue `BLOCKED` with status update noting the attempted investigations and what was inconclusive.
+- Report to the user. Do not proceed to fix without a verified root cause. A fix without a root cause is a guess.
 
 **Anti-patterns explicitly forbidden:**
-- Listing one hypothesis and immediately marking it CONFIRMED without verification.
-- Writing vague verification methods like "investigate" or "check" without specifying what action.
-- Skipping the verification result cell.
-- Declaring root cause based on "this looks suspicious" — suspicion is a hypothesis, not a verification.
+- Skipping Stage 1 and jumping straight to hypotheses.
+- Generating hypotheses from the symptom alone without examining runtime behavior.
+- Writing verification methods like "review the code" or "trace through the logic" — Stage 1 already did that; Stage 2 requires runtime evidence.
+- Declaring root cause from code inspection alone. Code inspection produces hypotheses, not verifications. Verification requires running the code under observation.
+- Declaring root cause from "this looks suspicious" — suspicion is a hypothesis.
+- Picking the most plausible-sounding hypothesis and marking it CONFIRMED without runtime evidence, just to proceed to a fix.
 
-**Record findings during diagnosis.** Debugging is a discovery-intensive process. Every non-obvious insight encountered during diagnosis must be recorded as a finding in the issue or progress document. These findings are valuable even if the current issue is resolved.
+**Record findings during diagnosis.** Every non-obvious insight encountered during Stage 1 or Stage 2 must be recorded as a finding in the issue or progress document.
 
-### 5c. Diagnostic Tools
+### 5c. Diagnostic Tools — choose by failure class
 
-Use all available tools as appropriate:
-- Log output analysis (read carefully and completely)
-- Targeted debug logging
-- Debuggers: lldb, gdb
-- Decompilation tools for binary analysis
-- Memory inspection, stack traces, variable state examination
-- Dependency source code reading
-- Web search for documented issues or API behavior
+Picking the right tool is part of the investigation, not an afterthought. Match the failure to the tool:
+
+| Failure class | Primary tool | What to capture |
+|---------------|--------------|-----------------|
+| Crash / panic / segfault | lldb/gdb backtrace, core dump | full stack trace, local variable values at frame 0 |
+| Wrong output / wrong behavior | instrumentation + reproduction | print/log values at each decision point leading to the wrong output |
+| Silent failure / no-op | tracing (strace/dtrace), structured logging | which syscalls/log lines fire, which expected ones don't |
+| Performance / hang | profiler (perf, Instruments, py-spy), tracing | hot stack samples, blocked threads, syscall wait times |
+| Memory issues | valgrind/ASan/LeakSanitizer, `heap` in lldb | allocation sites, leak reports, use-after-free addresses |
+| Concurrency / race | ThreadSanitizer, deterministic replay | conflicting accesses, happens-before relationships |
+| Integration / external API | network trace (tcpdump/Charles), mock reproduction | request/response pairs, API version mismatches |
+| Build / compile | full compiler error with `-Werror` flags, minimal reproduction | exact error + preprocessed source when macros involved |
+
+Supporting tools (always available):
+- `Grep` for locating code; `Read` for inspecting code; `git log -p` / `git blame` for history
+- Dependency source reading (read the actual library source, not only docs)
+- Web search for known issues / API behavior (cite URL in Investigation Log)
+
+**Reading code is not debugging.** Reading tells you what the code *should* do. Debugging tools tell you what it *actually did* at runtime. Root cause verification requires the latter.
 
 ### 5d. Fix Process (follows RULE 3 + RULE 4)
 
