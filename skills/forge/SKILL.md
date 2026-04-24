@@ -135,16 +135,83 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 
 ### META-PHASE A: Planning
 
-1. Analyze the task: read existing code, understand requirements, explore the codebase.
-2. Identify alternative approaches. For each, document technical pros, cons, and rationale. Select the approach with the strongest technical justification.
-3. Create a detailed plan divided into sequential phases. For each phase, specify:
-   - Objective
-   - Expected results: must be **precise and testable** — define what "implemented" means (compiles? passes tests? handles edge cases?). Distinguish between stub/placeholder and real implementation.
-   - Dependencies on prior phases: **build a dependency graph** and verify no circular dependencies exist.
-   - Risks and unknowns: for each phase, list what could go wrong and how to detect it early.
-4. Write the plan to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`.
-5. Create the corresponding `docs/progress/<name>.md` using the progress template.
-6. Log the planning action to the progress document.
+**A.1 — Task analysis.** Read existing code, understand requirements, explore the codebase.
+
+**A.2 — Approach identification.** Identify alternative approaches. For each, document technical pros, cons, and rationale. Tentatively select the approach with the strongest technical justification, pending feasibility verification in A.3.
+
+**A.3 — Feasibility Research (mandatory before writing phases).**
+
+Every approach rests on technical assumptions ("library X supports feature Y", "API Z works on platform W", "this syscall is available", "the dependency has this function", "the method scales to N items"). Unverified assumptions are the #1 cause of plans that turn out to be infeasible mid-execution.
+
+This step verifies those assumptions **before** committing to the approach. It is a two-stage process modeled on C.3b Code Review and RULE 5b Diagnosis:
+
+###### Stage 1 — Assumption Enumeration
+
+List every technical assumption the chosen approach depends on. Be explicit — for each:
+- Capability: "Library X supports feature Y"
+- Behavior: "API Z returns X on input Y"
+- Availability: "Syscall/crate/module W is available on target platform"
+- Performance: "Approach scales to N items in under T time"
+- Compatibility: "Version A is compatible with version B"
+
+Typically 3–10 assumptions per non-trivial approach. If you cannot identify any assumptions, you have not understood the approach — go back to A.1.
+
+###### Stage 2 — Verification Table
+
+Produce a **Feasibility Research** section in the plan document under `## Feasibility Research`.
+
+For each assumption, define a concrete verification action and execute it. Record the actual output in the "Evidence" cell.
+
+```
+## Feasibility Research
+
+| # | Assumption | Verification Action | Evidence (actual output) | Status |
+|---|------------|---------------------|--------------------------|--------|
+| A1 | [specific technical claim] | [exact command / file read / POC script / doc URL — the action that will prove or disprove this] | [actual command output, file excerpt, link] | CONFIRMED / REJECTED / INCONCLUSIVE |
+| A2 | ... | ... | ... | ... |
+```
+
+Verification action requirements:
+
+- **Must be runtime / source-level**, not assumption-level. Acceptable examples:
+  - `cargo tree -p <crate> -f '{p} {f}'` → confirmed output
+  - `grep -rn 'fn <name>' <dep-source-path>` → confirmed the function exists with signature X
+  - `man <syscall>` → confirmed available on target platform
+  - `curl <api>` → confirmed response shape
+  - 10-line proof-of-concept script executed → confirmed behavior
+  - Read `<vendor-source>/src/<file.rs>:L42-80` → confirmed mechanism
+- **Not acceptable** (these are assertions, not verifications):
+  - "Checked the docs" (which docs? what did they say?)
+  - "Should work based on the README"
+  - "This is a common pattern, so it works"
+  - "The library name suggests it does X"
+
+Status rules:
+- **CONFIRMED**: evidence directly shows the assumption holds. Proceed.
+- **REJECTED**: evidence shows the assumption is false. The approach based on this assumption is infeasible — return to A.2, pick a different approach or redesign.
+- **INCONCLUSIVE**: verification attempted but not conclusive. Must be resolved before proceeding: either design a better verification, or treat the assumption as REJECTED.
+
+###### Verification intensity
+
+For low-risk assumptions (widely used APIs, well-documented behavior): a single command output or doc URL is sufficient.
+
+For high-risk assumptions (new API, cross-platform claim, performance requirement, novel integration): write a **minimal proof-of-concept** — 10–50 lines of throwaway code that exercises the exact capability end-to-end. Record the POC file path, the command to run it, and the actual output. A POC that compiles but has never been run is not verification.
+
+###### Gate
+
+- **Any REJECTED assumption blocks the plan.** Return to A.2.
+- **Any INCONCLUSIVE assumption blocks the plan.** Do more investigation until it becomes CONFIRMED or REJECTED.
+- **Only when all assumptions are CONFIRMED** may you proceed to A.4 (writing phases).
+
+**A.4 — Write phase definitions.** Now that the approach is feasibility-verified, create a detailed plan divided into sequential phases. For each phase, specify:
+- Objective
+- Expected results: must be **precise and testable** — define what "implemented" means (compiles? passes tests? handles edge cases?). Distinguish between stub/placeholder and real implementation.
+- Dependencies on prior phases: **build a dependency graph** and verify no circular dependencies exist.
+- Risks and unknowns: for each phase, list what could go wrong and how to detect it early. Each risk should cross-reference the Feasibility Research assumption it relates to, or note "no A# — risk discovered here".
+
+**A.5 — Write the plan** to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`. The plan document must contain both the Feasibility Research table (from A.3) and the phase definitions (from A.4).
+
+**A.6 — Create the corresponding `docs/progress/<name>.md`** using the progress template. Log the planning action (including feasibility verification summary) to the progress document.
 
 ### META-PHASE B: Plan Review
 
@@ -167,8 +234,10 @@ Each cell must contain **specific evidence**, not assertions. Examples of what i
 |--------|---------------|------------|
 | Dependencies OK | "yes" | "Phase 2 needs compiled libfoo.a from Phase 1 output → verified Phase 1 produces it" |
 | Expected Results Testable | "yes, can test" | "Verify via: `cargo test --lib hvf` must pass 3 tests; `cargo build` exit 0" |
-| Feasibility | "should be fine" | "Checked: kqueue API available on macOS 10.15+, confirmed via `man kqueue`" |
-| Risks | "none" | "Risk: cros_async has no macOS backend (verified via `cargo tree -p cros_async -f '{p} {f}'`)" |
+| Feasibility | "should be fine" or any text not referencing A# | "[A3 CONFIRMED] kqueue API available, `man kqueue` returned on macOS 14" or "[A7 CONFIRMED + POC] 30-line POC at /tmp/poc.rs exec success" |
+| Risks | "none" | "Risk: cros_async has no macOS backend [A5 CONFIRMED via `cargo tree -p cros_async -f '{p} {f}'`]" |
+
+**Feasibility column must reference the Feasibility Research assumptions (A1, A2, ...) from META-PHASE A.3.** A Feasibility cell that does not cite an A# means the feasibility was not actually verified — treat as FAIL.
 
 **Additional cross-cutting checks** (separate section after the table):
 

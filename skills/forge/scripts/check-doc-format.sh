@@ -48,6 +48,21 @@ if [ -d "${DOCS_DIR}/plan" ]; then
         if ! grep -q '## Alternatives' "$f"; then
             echo "WARN  [plan/${BASENAME}]: No 'Alternatives & Trade-offs' section found"
         fi
+        if ! grep -q '## Feasibility Research' "$f"; then
+            echo "ERROR [plan/${BASENAME}]: No 'Feasibility Research' section found (required per META-PHASE A.3)"
+            ERRORS=$((ERRORS + 1))
+        else
+            # Check Feasibility Research has actual table rows with A# assumptions
+            FEAS_SECTION=$(sed -n '/## Feasibility Research/,/^## /p' "$f" 2>/dev/null || true)
+            if ! echo "$FEAS_SECTION" | grep -qE '\|\s*A[0-9]+\s*\|'; then
+                echo "ERROR [plan/${BASENAME}]: Feasibility Research section has no A# assumption rows"
+                ERRORS=$((ERRORS + 1))
+            fi
+            # Check for any REJECTED or INCONCLUSIVE assumptions
+            if echo "$FEAS_SECTION" | grep -qE '\|\s*(REJECTED|INCONCLUSIVE)\s*\|'; then
+                echo "WARN  [plan/${BASENAME}]: Feasibility Research contains REJECTED or INCONCLUSIVE assumptions — the plan should be reworked before execution"
+            fi
+        fi
     done
 fi
 

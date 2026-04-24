@@ -26,6 +26,23 @@ Source: {{SOURCE_REFERENCE}}
 | Approach | Pros | Cons | Verdict |
 |----------|------|------|---------|
 
+## Feasibility Research
+
+<!--
+  A.3 Feasibility Research (mandatory before writing phases).
+  Enumerate technical assumptions the chosen approach depends on, then verify each
+  with a runtime/source-level action. Record exact evidence.
+
+  Any REJECTED or INCONCLUSIVE assumption blocks the plan — return to Alternatives.
+  Only when all assumptions are CONFIRMED may Phases be written below.
+
+  For high-risk assumptions, include a minimal POC: file path, run command, and output.
+-->
+
+| # | Assumption | Verification Action | Evidence (actual output) | Status |
+|---|------------|---------------------|--------------------------|--------|
+| A1 | [specific technical claim] | [exact command / source read / POC script / doc URL] | [actual command output or excerpt] | CONFIRMED/REJECTED/INCONCLUSIVE |
+
 ## Phases
 
 ### Phase 1: {{PHASE_1_NAME}}
