@@ -32,6 +32,34 @@ This project targets commercial release. Every implementation decision must prio
 
 This principle takes precedence in all phases: planning (choose robust approaches), implementation (write production code), review (reject naive solutions), and debugging (fix properly, not minimally).
 
+## Token & Context Efficiency
+
+/forge workflows are long-running and token-intensive. Token cost is a real budget — wasteful patterns compound across rounds of review and iteration. Efficient token usage is a quality attribute alongside performance and reliability.
+
+**Rules:**
+
+1. **Search before reading.** Use `Grep` and `Glob` to locate code before `Read`-ing files in full. Reading entire multi-thousand-line files to find one function is waste.
+2. **Read diffs, not full files, during review rounds.** When re-reviewing after a fix (round M+1), read only the diff since the last round, not the full file again.
+3. **Cite existing content; do not re-quote it.** In progress/issue docs, reference `[plan/<name>#PhaseN]` or `[F-NNN]` rather than copy-pasting the cited content.
+4. **Do not re-enumerate the same state every response.** The banner provides state snapshot. Don't re-summarize plan status, open issues, and progress in prose if it's already in the banner and docs.
+5. **Compact investigation outputs.** Investigation Logs record exact outputs that prove actions were taken — but truncate verbose output where the truncated portion is not load-bearing (e.g., include the relevant lines of a test output, not all 200 lines).
+6. **Avoid redundant file reads within a phase.** If a file was read in C.1 Pre-Phase and has not changed, do not re-read in C.2/C.3 unless a specific reason exists.
+7. **Delegate exploration to subagents for large codebases.** Subagents run in isolated contexts — they can read widely without polluting the main conversation. Use `Agent` with the `Explore` subagent type for broad searches.
+8. **Prefer structured tool output over narrative.** A table or JSON summary Claude produces uses fewer tokens than a paragraph of prose. The banner, review tables, and diagnosis tables already follow this.
+
+**Cost visibility:**
+
+- At any point, the user can run `/usage` in Claude Code to see current session token consumption.
+- At META-PHASE D.7 (Retrospective), the user is asked to paste the `/usage` output into the retrospective for that plan, enabling cost-per-plan tracking over time.
+- If a single plan consumes disproportionate tokens (e.g., >2× the typical plan for similar scope), the retrospective must identify which phases or review rounds were expensive and what process improvement would reduce it next time.
+
+**Warning signs of wasteful patterns:**
+
+- Re-reading the same file across multiple review rounds without a specific reason (diff-only reviews suffice).
+- Writing long narrative explanations of changes that duplicate what the diff already shows.
+- Many INCONCLUSIVE diagnosis rounds — each costs tokens; if stuck at 2+ iterations, prefer BLOCKED + user consultation over more speculative verification attempts.
+- Subagent calls with overly broad prompts causing the subagent to read huge swaths of the codebase when a targeted query would suffice.
+
 ## Mandatory Status Banner
 
 Every response you produce while the /forge workflow is active MUST begin with this banner as the very first line(s):
@@ -667,6 +695,22 @@ Before proceeding to RULE 7, produce a **Retrospective** entry in the progress d
 **Process improvements for next plan**: [concrete changes to how future plans are constructed — new assumptions to always check, templates to add, etc.]
 
 **Findings promoted to DECISION**: [list F-NNN that represent architecture decisions worth preserving as ADRs]
+
+**Token & cost review**:
+
+Ask the user to run `/usage` in Claude Code and paste the output here. Then analyze:
+
+| Item | Value |
+|------|-------|
+| Total tokens this plan | [from /usage] |
+| Approximate cost | [if shown] |
+| Tokens per completed phase | total / number of phases |
+| Most expensive phase(s) | [by tool-call count if known, or observed review round count] |
+| Rework multiplier | [number of review/diagnosis rounds across all phases — target ≤ 1.5 per phase] |
+
+**Cost-efficiency observations**: [what activities consumed disproportionate tokens? e.g., repeated full-file reads, many INCONCLUSIVE diagnosis rounds, bloated investigation logs. Tie each observation to a process improvement.]
+
+**Budget for next plan of similar scope**: [estimate based on this plan's actual usage, adjusted by planned improvements]
 ```
 
 **D.8** — Proceed to RULE 7 (autonomous task planning) — do NOT stop here.

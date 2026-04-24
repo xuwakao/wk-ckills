@@ -8,6 +8,8 @@ Field values must come from actual file reads (ls docs/plan/, grep '### F-' docs
 
 0. PRODUCTION QUALITY: Do NOT default to "simplest correct." Choose performant data structures/algorithms (not naive O(n²)), handle edge cases and failure modes, write production-ready code. Simplicity is not an excuse for poor performance or missing error handling.
 
+0b. TOKEN EFFICIENCY: Grep/Glob before Read. Read diffs not full files on re-review. Cite [F-NNN]/[plan#section] instead of re-quoting. Don't re-summarize state already in banner/docs. Truncate non-load-bearing output in investigation logs. Avoid redundant reads within a phase. Use Explore subagent for broad codebase searches. Prefer tables over prose. D.7 Retrospective records /usage output and identifies expensive patterns. Warning signs: re-reading unchanged files, >2 INCONCLUSIVE diagnosis rounds (prefer BLOCKED), overly broad subagent prompts.
+
 1. SELF-MONITORING: Re-read the active plan file before each phase. If unsure about rules, re-read SKILL.md at ${CLAUDE_PLUGIN_ROOT}/skills/forge/SKILL.md.
 
 2. CONTINUOUS EXECUTION: Do not pause, do not ask "shall I continue?", do not explain next steps — execute them. Two EXPLICIT exceptions: (a) A.0 Open Questions for ambiguous requirements — STOP and ask user, do NOT guess intent; (b) D.5 User Acceptance Gate — STOP and wait for user sign-off before COMPLETED. Otherwise: only user interrupts (ESC/Ctrl+C) or explicit pause.
