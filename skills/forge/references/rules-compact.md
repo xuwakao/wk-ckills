@@ -2,7 +2,7 @@
 
 MANDATORY BANNER: Every response while forge is active MUST start with:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[/forge] plan=<name> · phase=<N>/<total> · meta=<A|B|C.1-C.5|C.3-fix|D|RULE5|RULE7> · issues=<open> · findings=<count>
+[/forge] plan=<name> · phase=<N>/<total> · meta=<A.0-A.7|B|C.1-C.5|C.3-fix|D.1-D.8|RULE5|RULE7> · issues=<open> · findings=<count>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Field values must come from actual file reads (ls docs/plan/, grep '### F-' docs, grep IN-PROGRESS docs/issue/), NOT from memory or estimation. Fabricated numbers = violation. Use `?` ONLY when data physically does not exist (e.g., empty docs/plan/ during META-PHASE A); never for issues/findings (use 0). Missing banner = drift detected = user will re-invoke /forge.
 
@@ -10,23 +10,25 @@ Field values must come from actual file reads (ls docs/plan/, grep '### F-' docs
 
 1. SELF-MONITORING: Re-read the active plan file before each phase. If unsure about rules, re-read SKILL.md at ${CLAUDE_PLUGIN_ROOT}/skills/forge/SKILL.md.
 
-2. CONTINUOUS EXECUTION: Do not pause, do not ask "shall I continue?", do not explain next steps — execute them. Only stop if user interrupts (ESC/Ctrl+C) or explicitly requests pause.
+2. CONTINUOUS EXECUTION: Do not pause, do not ask "shall I continue?", do not explain next steps — execute them. Two EXPLICIT exceptions: (a) A.0 Open Questions for ambiguous requirements — STOP and ask user, do NOT guess intent; (b) D.5 User Acceptance Gate — STOP and wait for user sign-off before COMPLETED. Otherwise: only user interrupts (ESC/Ctrl+C) or explicit pause.
 
 3. PHASED DEVELOPMENT: Follow META-PHASE A→B→C→D→RULE 7. CRITICAL:
-   - META-PHASE A.3 FEASIBILITY RESEARCH (mandatory, BEFORE writing phase definitions): enumerate technical assumptions of the chosen approach (library X has feature Y, syscall Z available, API returns X, scales to N, etc), then verify each with RUNTIME/SOURCE-LEVEL action (cargo tree, grep dep source, man page, curl, minimal POC). Record exact evidence in "## Feasibility Research" table (A1, A2, ... with CONFIRMED/REJECTED/INCONCLUSIVE). For high-risk assumptions, write a 10-50 line POC and run it. ANY REJECTED/INCONCLUSIVE → plan blocked, pick different approach. Only when ALL CONFIRMED may phases be written. Skipping feasibility research is the #1 cause of infeasible plans.
-   - Plan Review (META-PHASE B): MULTI-ROUND — write "### Plan Review" TABLE in progress (one row per phase: dependencies traced, expected results testable, feasibility with evidence referencing A#, risks listed, stub/real marked). Feasibility cell MUST cite A# from Feasibility Research; a cell without A# = FAIL. Each other cell needs specific evidence, not "yes/fine/none". Draw dependency graph. FAIL/RISK → fix plan → re-review "### Plan Review (round M)". Repeat until all PASS.
-   - Phase Review C.3 has TWO PARTS — both required:
-     * C.3a Outcome: "### Review: Phase N — Outcome" — expected-vs-actual table.
-     * C.3b Code: TWO STAGES. Stage 1 Investigation FIRST ("### Review: Phase N — Code · Investigation") — run git diff, Read each file, Grep anti-patterns (unwrap/todo/panic), Grep error paths, locate loops for complexity, run tests. Record exact tool outputs. Stage 2 Report ("### Review: Phase N — Code") — fill table with Logic/Edge Cases/Error Handling/Performance/Production Quality/Workarounds/Style. EVERY CELL MUST reference the investigation: "[investigation: <file> · <action>] observation". Cells without [investigation: ...] mean investigation was skipped = FAIL.
-   - UNLIMITED ROUNDS: any FAIL or CONCERN in either review → record as issue → fix → re-review "(round M)". Repeat until BOTH reviews show zero FAIL and zero CONCERN. Every code change triggers a fresh review.
-   - A phase CANNOT be marked COMPLETE without BOTH C.3a + C.3b clean + functional acceptance.
-   - Bug fix process (RULE 5d) ALSO requires code review on the fix — apply same C.3b checklist, iterate until clean.
-   Plan corrections during execution are append-only (mark old as [DEPRECATED], create new, cross-reference).
+   - A.0 REQUIREMENTS ANALYSIS: produce "## Requirements" section with User Stories, Acceptance Criteria (AC-1, AC-2... business-level + testable by outsider), NFRs (perf/security/compat/reliability/compliance). Ambiguous? STOP and ask user (Open Questions) before A.1. Do NOT invent requirements.
+   - A.2 ARCHITECTURE DECISION RECORD (ADR): produce "## Architecture Decision" with ADR-NNN (codebase-wide sequential), Context/Alternatives-table (min 2, chosen + rejected with evidence)/Decision/Consequences/Supersedes. Status PROPOSED → ACCEPTED after A.3 feasibility passes.
+   - A.3 FEASIBILITY RESEARCH: enumerate technical assumptions, verify each with RUNTIME/SOURCE-LEVEL action (cargo tree, grep dep source, man page, curl, minimal POC). Record A1/A2… in "## Feasibility Research" table with CONFIRMED/REJECTED/INCONCLUSIVE. High-risk → write and run 10-50 line POC. ANY REJECTED/INCONCLUSIVE → plan blocked.
+   - A.4 phase definitions: each phase must trace to AC-N (AC coverage). A.5 TEST PLAN per phase (Unit/Integration/E2E cases designed from AC+NFR, BEFORE implementation). A.6 write plan. A.7 create progress.
+   - Plan Review (META-PHASE B): MULTI-ROUND — "### Plan Review" TABLE referencing ADR and A#. FAIL/RISK → fix plan → re-review "(round M)" until all PASS.
+   - Phase Review C.3 by SUBAGENT (independence required; main assistant implemented so cannot fairly review): C.3a Outcome + C.3b Code (two stages: Investigation Log first, then Table with [investigation: ...] refs per cell). UNLIMITED ROUNDS until zero FAIL/CONCERN.
+   - C.4 FUNCTIONAL ACCEPTANCE: unit + integration + E2E tests per Test Plan, each with evidence.
+   - Bug fix (RULE 5d) ALSO requires code review + test passes.
+   Plan corrections during execution are append-only (mark old [DEPRECATED], create new, cross-reference).
 
-4. FUNCTIONAL ACCEPTANCE: After each phase — compile/build, compare results against plan expectations. PASS → continue. FAIL → record issue, fix, re-review.
+4. FUNCTIONAL ACCEPTANCE: unit + integration + E2E tests from A.5 Test Plan, each with evidence. PASS all levels → continue. Any FAIL → record issue, fix, re-review.
 
-5. DEBUGGING DISCIPLINE: No workarounds. TWO-STAGE DIAGNOSIS — Stage 1 INVESTIGATE first (read failing code + RUNTIME TOOLS: lldb/gdb backtrace, real log excerpts, strace/dtrace, ThreadSanitizer, profiler, instrumentation with reproduction). Reading code alone is NOT debugging — it produces hypotheses, not verifications. Stage 2 hypotheses must be grounded in the investigation; verification methods must be RUNTIME-level (not "read the code again"). Root cause requires CONFIRMED status from runtime evidence. STOP CONDITION: if after 2 investigation iterations no hypothesis CONFIRMED → mark BLOCKED, report to user, do NOT fix without verified root cause. Escalation: 3 failed fixes → change strategy; 5 failed plans → full re-evaluation; N similar issues → check broader scope systemically.
+5. DEBUGGING DISCIPLINE: No workarounds. TWO-STAGE DIAGNOSIS — Stage 1 INVESTIGATE first (read failing code + RUNTIME TOOLS: lldb/gdb backtrace, real log excerpts, strace/dtrace, ThreadSanitizer, profiler, instrumentation with reproduction). Reading code alone is NOT debugging — it produces hypotheses, not verifications. Stage 2 hypotheses grounded in investigation; verification methods RUNTIME-level. Root cause requires CONFIRMED from runtime evidence. STOP CONDITION: after 2 investigation iterations no CONFIRMED → mark BLOCKED, report to user, do NOT fix without verified root cause.
 
-6. DOCUMENTATION + FINDINGS: Update docs/progress/ and docs/issue/ continuously. Formal technical language only. All claims require verifiable sources. Mark unverified content [UNVERIFIED]. Use /git-commit for commits. ACTIVELY RECORD FINDINGS during implementation and debugging. Empty Findings sections are a sign of skipped recording. Phase review must note findings count.
+6. DOCUMENTATION + KNOWLEDGE: Update docs/progress/ and docs/issue/ continuously. Formal technical language only. [UNVERIFIED] for unverified. /git-commit for commits. STRUCTURED FINDINGS (Type: DECISION/DISCOVERY/CONSTRAINT/WARNING/BENCHMARK/GAP, with Statement/Evidence/Impact/Tags/Status — not bare titles). Empty Findings = skipped recording. PROJECT-LEVEL KNOWLEDGE under docs/knowledge/: api/ (user-facing API docs), onboarding/ (README/architecture/conventions/setup), ownership.md (module matrix), runbooks/ (operational procedures). Any phase touching public API MUST update api docs in same phase. Architecture changes MUST update onboarding/architecture.md and ownership.md. D.1 audits these artifacts for staleness.
 
-7. AUTONOMOUS PLANNING (MANDATORY after META-PHASE D): Do NOT stop after completing a plan. Scan docs/ for unresolved issues, [UNVERIFIED] findings, pending phases. If any exist → create new plan → continue. Only stop if nothing remains.
+7. META-PHASE D COMPLETION: D.1 full review + audit knowledge artifacts (api/onboarding/ownership/runbooks not stale). D.2 build. D.3 check-doc-format.sh. D.4 ACCEPTANCE SUMMARY (AC traceability table: AC-N → delivered state → evidence user can verify). D.5 USER ACCEPTANCE GATE — STOP and wait for user "accept" or rework list. Only after user accepts: D.6 mark COMPLETED. D.7 RETROSPECTIVE (What went well / What didn't / Root causes / Process improvements / DECISION findings to promote). D.8 proceed to RULE 7.
+
+8. AUTONOMOUS PLANNING (MANDATORY after D.8): scan docs/ for IN-PROGRESS/BLOCKED issues, [UNVERIFIED] findings, PENDING phases, GAP findings. If any → new plan → continue. Only stop if nothing remains.

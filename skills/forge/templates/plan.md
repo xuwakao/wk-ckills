@@ -16,32 +16,80 @@ Source: {{SOURCE_REFERENCE}}
 
 {{TASK_DESCRIPTION}}
 
-## Alternatives & Trade-offs
+## Requirements
 
-<!--
-  Document all approaches considered, with technical rationale for selection/rejection.
-  All claims must be verifiable (source code, documentation, test results).
--->
+<!-- A.0 — Requirements Analysis.
+     If ambiguous, STOP and ask user via Open Questions. Do NOT guess intent. -->
 
-| Approach | Pros | Cons | Verdict |
-|----------|------|------|---------|
+### User Stories / Intent
+
+<!-- "As <user>, I want <capability>, so that <benefit>."
+     Or technical form: "The system must <capability> because <reason>." -->
+
+### Acceptance Criteria (business-level, testable)
+
+| ID | Criterion | How to verify (at delivery time) |
+|----|-----------|---------------------------------|
+| AC-1 | [user-observable behavior] | [how an outsider would verify] |
+
+### Non-Functional Requirements (NFR)
+
+<!-- Include only what applies -->
+- **Performance**:
+- **Security**:
+- **Compatibility**:
+- **Reliability**:
+- **Compliance**:
+
+### Open Questions for the User
+
+<!-- List anything ambiguous. STOP and wait for user before proceeding to A.1. -->
+
+## Architecture Decision
+
+<!-- A.2 — Formal Architecture Decision Record (ADR). -->
+
+**ADR ID**: ADR-NNN
+**Title**: [concise decision statement]
+**Status**: PROPOSED
+**Date**: {{TIMESTAMP}}
+**Context**: [problem, constraints, link to AC-N/NFRs]
+
+### Alternatives Considered
+
+| # | Approach | Pros | Cons | Verdict | Rationale |
+|---|----------|------|------|---------|-----------|
+| 1 | [chosen] | ... | ... | SELECTED | [why, evidence-based] |
+| 2 | [alt] | ... | ... | REJECTED | [specific reason with evidence] |
+
+### Decision
+
+**Chosen approach**: [approach name]
+
+**Why**: [2-4 sentence technical argument]
+
+**Key assumptions** (verified in Feasibility Research below as A1, A2, …):
+- ...
+
+### Consequences
+
+- **Positive**:
+- **Negative**:
+- **Neutral / notable**:
+
+### Supersedes
+
+<!-- Optional: "Supersedes ADR-MMM because ..." -->
 
 ## Feasibility Research
 
-<!--
-  A.3 Feasibility Research (mandatory before writing phases).
-  Enumerate technical assumptions the chosen approach depends on, then verify each
-  with a runtime/source-level action. Record exact evidence.
-
-  Any REJECTED or INCONCLUSIVE assumption blocks the plan — return to Alternatives.
-  Only when all assumptions are CONFIRMED may Phases be written below.
-
-  For high-risk assumptions, include a minimal POC: file path, run command, and output.
--->
+<!-- A.3 — Mandatory before writing phases. Any REJECTED/INCONCLUSIVE blocks the plan. -->
 
 | # | Assumption | Verification Action | Evidence (actual output) | Status |
 |---|------------|---------------------|--------------------------|--------|
 | A1 | [specific technical claim] | [exact command / source read / POC script / doc URL] | [actual command output or excerpt] | CONFIRMED/REJECTED/INCONCLUSIVE |
+
+<!-- When all CONFIRMED, update Architecture Decision status from PROPOSED to ACCEPTED. -->
 
 ## Phases
 
@@ -49,21 +97,56 @@ Source: {{SOURCE_REFERENCE}}
 
 **Objective**: {{OBJECTIVE}}
 
+**AC coverage**: AC-1, AC-2  <!-- which Acceptance Criteria this phase contributes to -->
+
 **Expected Results**:
 - [ ] {{VERIFIABLE_RESULT_1}}
 - [ ] {{VERIFIABLE_RESULT_2}}
 
 **Dependencies**: None
 
+**Risks**: (each risk cross-references [A#] from Feasibility Research, or notes "no A# — discovered here")
+
+**Related ADRs**: [ADR-NNN]
+
 **Status**: PENDING
+
+#### Phase 1: Test Plan
+
+<!-- A.5 — Designed by independent QA subagent from AC+NFR, BEFORE implementation.
+     Do NOT look at code to write tests. -->
+
+**Traces to AC**: AC-1, AC-2
+
+| ID | Level | Test Case | Input / Setup | Expected Output / Behavior | Traces to AC |
+|----|-------|-----------|---------------|---------------------------|--------------|
+| T1 | unit | ... | ... | ... | AC-1 |
+| T2 | integration | ... | ... | ... | AC-1, AC-2 |
+| T3 | e2e | ... | ... | ... | AC-2 |
 
 <!-- Repeat for additional phases -->
 
 ## Findings
 
 <!--
-  Each finding is a subsection: ### F-NNN: <title>
-  Reference within this document: [F-NNN]
-  Reference from other documents: [plan/<name>#F-NNN]
-  Unverified findings must be marked [UNVERIFIED] with planned verification method.
+  Structured findings (not bare titles).
+  Type: DECISION | DISCOVERY | CONSTRAINT | WARNING | BENCHMARK | GAP
+  Status: ACTIVE | SUPERSEDED | OBSOLETE | [UNVERIFIED]
+  Include: Tags, Context, Statement, Evidence, Impact/So what, Related.
 -->
+
+### F-001: [concise title]
+
+**Type**: DISCOVERY
+**Status**: ACTIVE
+**Date**: {{TIMESTAMP}}
+**Tags**: [space-separated, e.g., `platform:macos layer:net perf`]
+**Context**: [which phase/issue/investigation]
+
+**Statement**: [one paragraph precise statement]
+
+**Evidence**: [file paths w/ line numbers, command outputs, URLs, POC refs]
+
+**Impact / So what**: [who/what affected; what future decisions it constrains]
+
+**Related**: [optional cross-refs to F-NNN, ADR-NNN, issue/file#ISS-NNN]

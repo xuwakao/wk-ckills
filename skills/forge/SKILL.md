@@ -135,9 +135,109 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 
 ### META-PHASE A: Planning
 
-**A.1 — Task analysis.** Read existing code, understand requirements, explore the codebase.
+**A.0 — Requirements Analysis (mandatory before technical work).**
 
-**A.2 — Approach identification.** Identify alternative approaches. For each, document technical pros, cons, and rationale. Tentatively select the approach with the strongest technical justification, pending feasibility verification in A.3.
+Before any technical exploration, extract structured requirements from the task description. This separates **what the user wants** from **how we will build it**. Mixing these causes acceptance criteria to be written from the implementer's perspective rather than the user's, which loses the ability to verify delivery against original intent.
+
+Produce a `## Requirements` section in the plan document with three subsections:
+
+```
+## Requirements
+
+### User Stories / Intent
+<!-- One or more statements in the form: "As <user>, I want <capability>, so that <benefit>."
+     Or for technical tasks: "The system must <capability> because <reason>." -->
+
+### Acceptance Criteria (business-level, testable)
+<!-- Each criterion must be: testable, written from the user's perspective, and independent
+     of implementation choices. Number them AC-1, AC-2, ... -->
+
+| ID | Criterion | How to verify (at delivery time) |
+|----|-----------|---------------------------------|
+| AC-1 | [user-observable behavior, e.g., "User can log in with email + password and receive a session token"] | [how an outsider would verify: "POST /login with valid credentials returns 200 + token cookie"] |
+| AC-2 | ... | ... |
+
+### Non-Functional Requirements (NFR)
+<!-- Constraints that apply across all behavior. Include only what applies: -->
+- **Performance**: [e.g., "login latency p99 < 300ms under 1000 rps"]
+- **Security**: [e.g., "passwords never logged; tokens rotate on each login"]
+- **Compatibility**: [e.g., "API must remain backward-compatible with v1 clients"]
+- **Reliability**: [e.g., "login endpoint availability 99.9%"]
+- **Compliance**: [e.g., "GDPR: user data deletion on request within 24h"]
+
+### Open Questions for the User
+<!-- Anything ambiguous, missing, or interpretable in multiple ways MUST be listed here. -->
+```
+
+Rules:
+- **AC must be business-level, not implementation-level.** "The login function returns a Result" is implementation; "The user receives a session token after valid credentials" is business-level.
+- **AC must be testable by an outside party.** If the only way to verify is to read the source code, the AC is not well-formed.
+- **AC-N identifiers persist throughout the plan.** Phase expected results and tests will cross-reference them.
+
+**Stop-and-ask rule (mandatory):** If any part of the task is ambiguous, interpretable in multiple ways, or has missing information, **STOP and ask the user** before proceeding. Do NOT guess user intent. Do NOT invent requirements to fill gaps. Do NOT pick the "most likely" interpretation silently.
+
+Specifically, stop and ask when:
+- The task description uses vague terms (e.g., "make it faster", "improve UX") without measurable criteria — ask for concrete targets.
+- Multiple valid implementations satisfy the task differently — ask which matters more (e.g., speed vs accuracy, simplicity vs extensibility).
+- Scope boundary is unclear (e.g., "add authentication" — for which endpoints? which users? which auth methods?).
+- NFRs are not stated but likely matter (e.g., user-facing feature with no perf/security mention) — ask.
+- The task references entities or concepts not in the codebase — ask for their definition or location.
+
+The stop-and-ask is an explicit exception to RULE 2 (continuous execution). Asking clarifying questions during A.0 is required behavior, not interruption.
+
+When asking: list the Open Questions in the plan document and in your response to the user. Wait for answers. Only proceed to A.1 after all Open Questions have been resolved with user input. Update the Requirements section with the confirmed answers before moving on.
+
+**A.1 — Task analysis.** Read existing code, understand the codebase landscape relevant to the requirements from A.0, and explore how the requirements could be implemented.
+
+**A.2 — Approach identification & Architecture Decision Record (ADR).**
+
+Identify alternative approaches. For each, document technical pros, cons, and rationale. Tentatively select the approach with the strongest technical justification, pending feasibility verification in A.3.
+
+The A.2 output is a formal **Architecture Decision Record (ADR)**, not just a comparison table. Produce an `## Architecture Decision` section in the plan document with this structure:
+
+```
+## Architecture Decision
+
+**ADR ID**: ADR-NNN (sequential across the codebase; check existing ADRs in docs/ before choosing)
+**Title**: <concise decision statement, e.g., "Use kqueue for event multiplexing on macOS instead of cros_async">
+**Status**: PROPOSED (until A.3 feasibility passes; then becomes ACCEPTED)
+**Date**: YYYY-MM-DD
+**Context**: <What problem is being solved? What constraints apply? Link to AC-N and NFRs.>
+
+### Alternatives Considered
+
+| # | Approach | Pros | Cons | Verdict | Rationale |
+|---|----------|------|------|---------|-----------|
+| 1 | <chosen approach> | ... | ... | SELECTED | <why this one, in one sentence> |
+| 2 | <alternative> | ... | ... | REJECTED | <specific reason with evidence> |
+| 3 | <alternative> | ... | ... | REJECTED | <specific reason with evidence> |
+
+### Decision
+
+**Chosen approach**: <approach #1 name>
+
+**Why**: <the technical argument — 2-4 sentences, not a narrative>
+
+**Key assumptions** (to be verified in A.3): list the technical assumptions this decision rests on. These become A1, A2, ... in Feasibility Research.
+
+### Consequences
+
+- **Positive**: <what this decision enables or simplifies>
+- **Negative**: <what this decision costs, risks, or makes harder>
+- **Neutral / notable**: <other implications worth recording>
+
+### Supersedes
+
+<Optional. If this ADR replaces an earlier one: "Supersedes ADR-MMM because <reason>". The old ADR's status becomes SUPERSEDED.>
+```
+
+Rules for ADRs:
+- **ADR ID is codebase-wide and sequential.** Before writing, check existing `docs/plan/*.md` and `docs/progress/*.md` for the highest ADR-N and use N+1.
+- **Status lifecycle**: PROPOSED (during A.2) → ACCEPTED (after A.3 feasibility all CONFIRMED) → SUPERSEDED (if a later ADR replaces it) or DEPRECATED (if the decision is abandoned without replacement).
+- **Alternatives are mandatory.** An ADR with only the chosen option is not a decision record — it's a declaration. Minimum 2 alternatives (including the chosen one).
+- **Rejected alternatives must have evidence-based rationale.** "Not idiomatic" or "more complex" is insufficient without explaining what specifically is worse.
+- **Link to ADR from phase definitions.** Any phase whose implementation depends on this architectural choice should reference `[ADR-NNN]` in its description.
+- **Promote to permanent ADR in D.7.** At retrospective time, ADRs judged worth keeping long-term are collected into a codebase-wide ADR index (see D.7 and Finding Mechanism).
 
 **A.3 — Feasibility Research (mandatory before writing phases).**
 
@@ -205,13 +305,53 @@ For high-risk assumptions (new API, cross-platform claim, performance requiremen
 
 **A.4 — Write phase definitions.** Now that the approach is feasibility-verified, create a detailed plan divided into sequential phases. For each phase, specify:
 - Objective
+- **AC coverage**: which Acceptance Criteria (AC-N from A.0) this phase contributes to. A phase must contribute to at least one AC; if it does not, question whether it is necessary.
 - Expected results: must be **precise and testable** — define what "implemented" means (compiles? passes tests? handles edge cases?). Distinguish between stub/placeholder and real implementation.
 - Dependencies on prior phases: **build a dependency graph** and verify no circular dependencies exist.
 - Risks and unknowns: for each phase, list what could go wrong and how to detect it early. Each risk should cross-reference the Feasibility Research assumption it relates to, or note "no A# — risk discovered here".
 
-**A.5 — Write the plan** to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`. The plan document must contain both the Feasibility Research table (from A.3) and the phase definitions (from A.4).
+**A.5 — Test Plan (produced by an independent QA subagent).**
 
-**A.6 — Create the corresponding `docs/progress/<name>.md`** using the progress template. Log the planning action (including feasibility verification summary) to the progress document.
+Designing tests after implementation creates a "self-grading" problem. Even designing tests before implementation has a subtler bias: the same assistant who will implement the code will naturally design tests that align with the implementation approach they have in mind, missing cases outside that mental model.
+
+To break this bias, **A.5 must be delegated to a QA subagent** with scoped inputs:
+
+- **Provide the subagent with**: the Requirements section (A.0 — AC + NFR) and the Phase objectives/expected results (A.4, headings only, NOT the implementation approach from A.2/A.3).
+- **Do NOT provide the subagent with**: the Architecture Decision (A.2), the Feasibility Research POCs (A.3), or any hints about how the code will be structured.
+- **Prompt**: "You are an independent QA engineer. Design a test plan from the provided Acceptance Criteria and NFRs. Do not assume any specific implementation. For every AC and NFR, derive unit / integration / E2E test cases. Every test case must trace to at least one AC-N or NFR. Negative tests are mandatory. Include edge cases derived from the requirements' value domains, not from code."
+
+The subagent returns the Test Plan table. The main assistant writes it verbatim as the Test Plan subsection — no edits. If the main assistant disagrees with a test case, that disagreement is itself a signal (either the AC is unclear and must be clarified with the user, or the test caught an implementation shortcut).
+
+For each phase, produce a **Test Plan** subsection in the plan document:
+
+```
+### Phase N: Test Plan
+
+**Traces to AC**: AC-1, AC-3 (this phase contributes to these acceptance criteria)
+
+| ID | Level | Test Case | Input / Setup | Expected Output / Behavior | Traces to AC |
+|----|-------|-----------|---------------|---------------------------|--------------|
+| T1 | unit | [specific function-level test] | [concrete input] | [concrete expected output] | AC-1 |
+| T2 | integration | [cross-module test] | [setup + invocation] | [observable outcome] | AC-1, AC-3 |
+| T3 | e2e | [end-to-end user scenario] | [user action sequence] | [user-observable result] | AC-3 |
+| T4 | unit | [edge case: empty input] | [] | [specific handling] | AC-1 |
+| T5 | unit | [edge case: max size] | [N=10^6] | [< 1s, no OOM] | AC-1 + NFR perf |
+| T6 | integration | [failure mode: DB unavailable] | [DB down] | [graceful degradation per NFR] | NFR reliability |
+```
+
+Rules:
+- **Test cases come from AC and NFR, not from the code.** If you are looking at the code to write tests, you are grading your own work.
+- **Required coverage levels**:
+  - **Unit**: every non-trivial function; every edge case identified in Phase expected results; every NFR that can be exercised at unit level (e.g., input validation).
+  - **Integration**: every module boundary touched by the phase; every external dependency interaction; every failure mode (dependency down, timeout, partial response).
+  - **E2E**: at least one happy path per AC; representative failure scenarios.
+- **Each test case traces to at least one AC or NFR.** Tests that don't trace to anything are suspect — either the AC is missing or the test is unnecessary.
+- **Negative tests are mandatory.** For every expected behavior, identify at least one failure input/state and how the system must handle it.
+- **If a level does not apply** (e.g., pure library with no integration points): state explicitly `Level=integration: N/A because <reason>`. Silence is not acceptable.
+
+**A.6 — Write the plan** to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`. The plan document must contain: Requirements (A.0), Alternatives (A.2), Feasibility Research (A.3), Phase definitions (A.4), Test Plan per phase (A.5).
+
+**A.7 — Create the corresponding `docs/progress/<name>.md`** using the progress template. Log the planning action to the progress document.
 
 ### META-PHASE B: Plan Review
 
@@ -273,9 +413,32 @@ A one-line "review complete, no changes" is **never acceptable**. The table and 
 
 C.3 has two mandatory parts. **Both must be completed.** A phase without both review artifacts cannot be marked COMPLETE.
 
-##### C.3a — Outcome Review
+**Reviewer independence (mandatory):** C.3a and C.3b must be performed by a **subagent**, not by the main conversation. The main assistant implemented the phase; if the same context also reviews it, the review is biased toward self-justification. A subagent starts fresh, without the main conversation's reasoning, and evaluates the work as an outside reviewer would.
 
-Produce a **Phase Outcome Review** entry in the progress document under `### Review: Phase N — Outcome`.
+To run an independent review:
+- Use the `Agent` tool to spawn a subagent with `subagent_type: "general-purpose"` (or `"code-reviewer"` if available).
+- Prompt the subagent with: the plan document path, the phase number being reviewed, the AC the phase traces to, and the explicit instruction to produce the review artifact per the format below.
+- The subagent reads the plan, the test plan, and the modified code independently. It has no knowledge of the implementer's internal reasoning.
+- The subagent returns the review table(s) as its final output.
+- The main assistant writes the subagent's output verbatim to the progress document as `### Review: Phase N — Outcome` and `### Review: Phase N — Code`.
+
+The main assistant **does not edit the subagent's findings**. If the subagent found issues, record them as-is. Disagreements with the subagent's findings are themselves findings worth recording.
+
+##### C.3a — Outcome Review (produced by subagent)
+
+Prompt the subagent with:
+
+"You are an independent QA reviewer. Do THREE things:
+
+1. **Run the planned tests**: for each test in the Test Plan (A.5) for Phase N, execute it (use the appropriate test command for the project), capture the actual output, and record PASS/FAIL with evidence.
+
+2. **Derive supplementary tests from AC/NFR**: independently read the Requirements section (A.0) and the Phase expected results. Identify any AC or NFR coverage that the planned tests may have missed (edge cases, failure modes, boundary values). Design 1–5 additional tests and run them. Record them in the review with `[supplementary]` marker.
+
+3. **Produce the Outcome Review table**: one row per Expected Result of Phase N, mapping to PASS/FAIL/PARTIAL, evidence from both planned and supplementary tests, and any AC that the phase failed to deliver.
+
+Do not read the implementation code for this review beyond what is necessary to run the tests. Your job is to verify from the outside."
+
+Format:
 
 The review MUST use this exact table format (one row per expected result from the plan):
 
@@ -297,9 +460,11 @@ Rules:
 - PARTIAL counts as FAIL for the overall verdict.
 - If any expected result was never executed at runtime, its verdict must be `PASS [UNVERIFIED]` with verification method noted.
 
-##### C.3b — Code Review
+##### C.3b — Code Review (produced by subagent)
 
 A passing outcome review (C.3a) does NOT mean the code is acceptable. Code can satisfy expected results yet contain hidden bugs, edge case failures, performance problems, workarounds, or quality issues.
+
+**C.3b must also be performed by a subagent** — the same independence requirement as C.3a. Prompt a fresh subagent with: "Read the plan at `docs/plan/<name>.md` for Phase N context, then review the code changes for this phase. First produce a C.3b Investigation Log with the required investigation actions below, then produce a Code Review table. Do not trust any claims from the implementer — verify everything by reading the actual code and running the specified tool calls."
 
 **C.3b is a two-stage process: investigate first, then report.** The review table comes LAST, not first. Writing the table without doing the investigation is a violation — the evidence cells will be fabricated.
 
@@ -445,12 +610,66 @@ If an issue is deemed unsolvable after exhausting the escalation protocol (RULE 
 
 ### META-PHASE D: Completion
 
-1. Conduct a full review of all implemented phases.
-2. Run final compilation/build verification.
-3. Mark the plan `Status: COMPLETED`.
-4. Write a summary entry in progress.
-5. Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/check-doc-format.sh` to validate documentation.
-6. **Immediately proceed to RULE 7** — do NOT stop here. META-PHASE D completion is not the end of the workflow. RULE 7 determines the next task.
+**D.1** — Conduct a full review of all implemented phases.
+
+**D.2** — Run final compilation/build verification.
+
+**D.3** — Run `bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/check-doc-format.sh` to validate documentation.
+
+**D.4 — Acceptance Summary (mandatory, user-facing).**
+
+Before marking the plan COMPLETED, produce an **Acceptance Summary** as a direct response to the user. This is the user's opportunity to verify delivery against the original requirements, from the outside.
+
+The summary must contain:
+
+1. **AC traceability table** — one row per Acceptance Criterion from A.0:
+
+   ```
+   | AC ID | Criterion (from A.0) | Delivered state | Evidence (how user can verify) |
+   |-------|---------------------|-----------------|--------------------------------|
+   | AC-1  | [original criterion text] | [what was built that addresses it] | [command / URL / file / test output user can check] |
+   | AC-2  | ... | ... | ... |
+   ```
+
+2. **NFR verification** — one line per non-functional requirement from A.0, stating how it was validated (or marked `[UNVERIFIED]` with reason).
+
+3. **Known gaps / deferred work** — any AC/NFR partially met or deferred, each cross-referenced to the issue or finding tracking it.
+
+4. **Outstanding issues** — summary of any open `IN-PROGRESS` or `BLOCKED` issues.
+
+**D.5 — User Acceptance Gate (blocking).**
+
+After presenting the Acceptance Summary, **stop and ask the user for explicit acceptance**. This is the second explicit exception to RULE 2 (continuous execution), and it is required.
+
+Ask: "Please confirm whether each AC is accepted. Reply with 'accept' to mark the plan COMPLETED, or list specific AC-N that need rework."
+
+Wait for the user's response. Do not proceed.
+
+- If the user accepts: proceed to D.6.
+- If the user rejects specific AC: return to the appropriate phase (or META-PHASE A if the requirement itself needs to change). The rejection and its reason are recorded in the plan document as a Plan Correction.
+- If the user requests changes: treat as new requirements — return to A.0 if scope changes, or the appropriate phase if only implementation needs adjustment.
+
+**D.6** — Only after user acceptance: mark the plan `Status: COMPLETED` and write a summary entry in progress.
+
+**D.7 — Retrospective (mandatory).**
+
+Before proceeding to RULE 7, produce a **Retrospective** entry in the progress document under `### Retrospective`:
+
+```
+### Retrospective
+
+**What went well**: [3-5 concrete items, e.g., "Feasibility POC for kqueue caught the platform issue early"]
+
+**What did not go well**: [concrete items — plan corrections forced, unexpected blockers, skipped rules, rework rounds > 3]
+
+**Root causes**: [for each item in "did not go well", what upstream decision or missing check caused it?]
+
+**Process improvements for next plan**: [concrete changes to how future plans are constructed — new assumptions to always check, templates to add, etc.]
+
+**Findings promoted to DECISION**: [list F-NNN that represent architecture decisions worth preserving as ADRs]
+```
+
+**D.8** — Proceed to RULE 7 (autonomous task planning) — do NOT stop here.
 
 ---
 
@@ -626,13 +845,194 @@ Every plan and progress document must declare its source in the header:
 - Feature plan/progress → link to the task description or requirement source.
 - Issue fix plan/progress → link to `issue/<name>.md#ISS-NNN`.
 
-### Findings Mechanism
+### Findings Mechanism (Knowledge Management)
 
-Every document (plan, progress, issue) contains a `## Findings` section.
-- Each finding is a subsection: `### F-NNN: <title>`.
+Findings are durable knowledge. A bare title + one-liner is **not** a finding — it is a note that will be unusable in six months. Every finding must be structured so that a future engineer (or future Claude session) can read it out of context and understand: what was discovered, why it matters, what evidence backs it, and what to do with it.
+
+###### Finding Types
+
+Every finding must be classified as exactly one of these types:
+
+- **DECISION** — an architecture/design decision made (equivalent to an ADR). Includes rationale, considered alternatives, and consequences.
+- **DISCOVERY** — a non-obvious technical fact learned about the system, a dependency, or the environment. Not a decision; a piece of reality we now know.
+- **CONSTRAINT** — a limitation or requirement imposed by external reality (platform, dependency, legal, business) that affects future work.
+- **WARNING** — a known pitfall or gotcha that future work should avoid. Often derived from a bug that was fixed; the lesson is preserved even if the bug is closed.
+- **BENCHMARK** — a quantitative measurement of performance, resource usage, or capacity. Serves as a baseline for future regression detection.
+- **GAP** — a known unaddressed issue or deferred work that is too small or out-of-scope to be a full issue entry. Tracks "we know this is imperfect."
+
+###### Finding Structure (mandatory)
+
+Every finding uses this exact structure:
+
+```
+### F-NNN: <concise title>
+
+**Type**: DECISION | DISCOVERY | CONSTRAINT | WARNING | BENCHMARK | GAP
+**Status**: ACTIVE | SUPERSEDED | OBSOLETE | [UNVERIFIED]
+**Date**: YYYY-MM-DD
+**Tags**: <space-separated tags for search, e.g., `platform:macos performance rust hvf`>
+**Context**: <which phase, which issue, which investigation produced this finding>
+
+**Statement**:
+<One paragraph stating the finding precisely. For DECISION, state the decision itself. For DISCOVERY, state the fact. For CONSTRAINT, state the limit. For WARNING, state the pitfall. For BENCHMARK, state the measurement. For GAP, state the unaddressed problem.>
+
+**Evidence**:
+<Concrete source backing the finding. File paths with line numbers, command outputs, URLs, POC file references. No assertions without evidence.>
+
+**Impact / So what**:
+<Who or what is affected by this finding. What code paths, what future work, what decisions does it constrain or inform? A finding without stated impact is just trivia.>
+
+**Related**:
+<Optional. Cross-references to other findings, issues, phases: [F-NNN], [issue/core#ISS-003], [plan/auth#Phase2]. Supersedes/Superseded-by for DECISION evolution.>
+```
+
+###### Type-specific additional fields
+
+**DECISION** (acts as an ADR):
+- **Alternatives considered**: brief list with why each was rejected
+- **Consequences**: positive and negative effects of the decision
+
+**WARNING**:
+- **Trigger**: the specific condition that causes the problem
+- **Mitigation**: how to avoid or handle it
+
+**BENCHMARK**:
+- **Environment**: hardware, OS, config snapshot where measured
+- **Method**: exact command or workload used
+
+**GAP**:
+- **Resolution path**: what would it take to close this gap? When should it be revisited?
+
+###### Finding Status Lifecycle
+
+- **ACTIVE** — finding is current and valid.
+- **[UNVERIFIED]** — the finding was recorded but the evidence is provisional. Must include `Verification plan:` describing how to verify. Cannot be cited as authoritative.
+- **SUPERSEDED** — a later finding replaces this one (decision changed, discovery refined). Must include `Superseded-by: [F-MMM]`.
+- **OBSOLETE** — the subject of the finding no longer exists (code removed, dependency dropped). Keep for historical trace; do not cite.
+
+Do not delete findings. Update status instead.
+
+###### Tag Conventions
+
+Tags enable finding search across the docs/ tree. Use consistent tag namespaces:
+
+- `platform:<os>` — platform-specific (e.g., `platform:macos`, `platform:linux`)
+- `layer:<layer>` — architectural layer (e.g., `layer:vm`, `layer:net`, `layer:ui`)
+- `dep:<name>` — related dependency (e.g., `dep:cros_async`)
+- `perf`, `security`, `correctness`, `usability` — cross-cutting concerns
+- `api:<component>` — API-related
+- `arch` — architecture-level
+
+Tags are lowercase, hyphenated, space-separated.
+
+###### Internal and Cross-Document Reference
+
 - Internal reference: `[F-NNN]`.
 - Cross-document reference: `[plan/<name>#F-NNN]`, `[progress/<name>#F-NNN]`, `[issue/<name>#F-NNN]`.
-- Unverified findings must include `[UNVERIFIED]` and a verification plan.
+
+###### Promoting to ADR
+
+At the end of each plan (META-PHASE D.7 Retrospective), review all `DECISION` findings produced during the plan. If any represent long-term architecture decisions that should survive beyond this plan's lifetime, list them in the Retrospective under "Findings promoted to DECISION." These are the authoritative architecture decisions for the codebase.
+
+###### Findings are not optional
+
+Empty Findings sections signal that Claude skipped recording. Every non-trivial phase produces at least 1 finding; every non-trivial issue produces at least 1 finding (usually a WARNING preserving the lesson learned from the bug).
+
+If a phase's Findings section has zero entries, you must either:
+1. Record findings from the phase that were missed (most common case), or
+2. Note in the phase review: `**Findings rationale**: no non-obvious discoveries in this phase because <specific reason>`. "Nothing interesting happened" is not sufficient — explain why the phase had no architectural/behavioral discoveries.
+
+### Project-Level Knowledge Artifacts
+
+Findings capture granular discoveries. But a project also needs **structural, durable knowledge** that outlives individual plans and helps future contributors (including future Claude sessions) get productive quickly. These artifacts live at `docs/knowledge/` and are maintained across plans.
+
+###### 1. User-facing / API documentation
+
+Distinct from internal progress docs. These describe **how to use the system**, not how it was built.
+
+Location and structure:
+- `docs/knowledge/api/` — public API reference: endpoints, function signatures, parameters, return types, error codes, examples
+- `docs/knowledge/user-guide.md` — end-user or caller-facing usage guide (when applicable)
+
+Rules:
+- **Any phase that adds, changes, or removes a public API must update `docs/knowledge/api/` in the same phase.** This is part of Expected Results — if an API changes and the doc doesn't, the phase is incomplete.
+- **Every public function/endpoint/type documented has**: signature, purpose (one sentence), parameters (with constraints), return value, error conditions, minimal example.
+- **Breaking changes**: highlighted at the top of the relevant doc section with migration instructions.
+- C.3b Code Review must verify the API doc is current; missing/stale doc → FAIL.
+
+###### 2. Onboarding documentation
+
+For a new contributor (or new Claude session) to understand the codebase fast.
+
+Location: `docs/knowledge/onboarding/`
+- `README.md` — 5-minute orientation: what this project does, how to build/run, where to find things
+- `architecture.md` — system architecture at a level someone can mentally model in 15 minutes: major components, data flow, trust boundaries, external dependencies
+- `conventions.md` — code style, naming, module boundaries, test patterns, git workflow specific to this repo
+- `development-setup.md` — tooling, environment, common commands, troubleshooting
+
+Update rules:
+- **Created on first plan's META-PHASE D if missing.** If `docs/knowledge/onboarding/README.md` does not exist at D.1 of the first plan, create it as part of D.
+- **Updated whenever architecture changes.** Any phase that adds a major component, changes data flow, or alters trust boundaries must update `architecture.md` in the same phase.
+- **Audited at every META-PHASE D.1** (full review step): read the onboarding docs and confirm they match current reality. Stale onboarding doc → issue recorded.
+
+###### 3. Code / Module Ownership Matrix
+
+Maps modules to their purpose, dependencies, and responsible area. Enables quick impact analysis and prevents accidental cross-cutting changes.
+
+Location: `docs/knowledge/ownership.md`
+
+Format:
+
+```
+# Module Ownership Matrix
+
+| Module | Path | Purpose (1 sentence) | Public API | Depends on | Used by | Related ADRs | Notes |
+|--------|------|---------------------|------------|------------|---------|--------------|-------|
+| auth | src/auth/ | Session token issuance and validation | `login()`, `validate_token()` | db, crypto | api, admin | ADR-012 | Security-sensitive; see F-023 |
+| ... | | | | | | | |
+```
+
+Update rules:
+- **New module created** → must be added to the matrix in the same phase.
+- **Module renamed / moved / deleted** → matrix updated in the same phase.
+- **Dependency added between modules** → both rows updated.
+- **Audited at every META-PHASE D.1**: does the matrix reflect the actual module layout? Mismatch → issue recorded.
+
+###### 4. Runbooks (operational knowledge)
+
+For any system component that can fail in production or requires manual intervention.
+
+Location: `docs/knowledge/runbooks/`
+- One file per failure mode or operation: `deploy.md`, `rollback.md`, `db-migration.md`, `cert-rotation.md`, etc.
+
+Each runbook contains:
+- **Trigger**: when to use this runbook
+- **Pre-check**: how to confirm the trigger applies
+- **Steps**: numbered, copy-pasteable commands
+- **Post-check**: how to confirm the operation succeeded
+- **Rollback**: how to undo if the operation fails mid-way
+- **Escalation**: who/what to notify if the runbook does not resolve the situation
+
+Created when: a phase introduces a production-affecting capability, a new operational procedure, or resolves an incident that might recur.
+
+###### 5. Bus Factor / Knowledge Backup
+
+"Bus factor" = the number of people (or in our case, sessions) who can be lost before the project is stuck. The artifacts above collectively reduce bus factor, but this must be actively maintained:
+
+- **Tribal knowledge test** at META-PHASE D.1: for each non-trivial decision, quirk, or workaround in the current plan, is it captured in a DECISION/WARNING/DISCOVERY finding AND (if structural) promoted to the relevant knowledge artifact (ADR index, ownership matrix, runbook)?
+- **Untestable assumption**: if the only way someone would know a fact about the system is to have been in the current conversation, it is tribal knowledge and must be externalized before the session ends.
+- **Session-continuity test**: before META-PHASE D.5 (user acceptance gate), ask: "If this conversation disappeared right now and a fresh Claude session picked up the project, could it resume work effectively using only `docs/` content?" If not, what is missing? Record and fix.
+
+###### Knowledge artifact audit in META-PHASE D
+
+META-PHASE D.1 (full review) must explicitly audit these artifacts:
+- API docs current for all public APIs touched in this plan? (If not → issue)
+- Onboarding docs still accurate? (Architecture changes reflected?)
+- Ownership matrix reflects the current module layout?
+- Any operational procedures introduced that need runbooks?
+- Any tribal knowledge in the conversation that was not externalized?
+
+Gaps found here are addressed before D.5 user acceptance.
 
 ### Append-Only Rule (during execution)
 
