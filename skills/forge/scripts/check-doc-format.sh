@@ -39,29 +39,62 @@ if [ -d "${DOCS_DIR}/plan" ]; then
         if ! grep -q '^Source:' "$f"; then
             echo "WARN  [plan/${BASENAME}]: Missing 'Source:' field (required for traceability)"
         fi
-        if ! grep -q '## Phases' "$f" && ! grep -q '### Phase' "$f"; then
-            echo "WARN  [plan/${BASENAME}]: No 'Phases' section found"
+        # A.0 Requirements section
+        if ! grep -q '## Requirements' "$f"; then
+            echo "ERROR [plan/${BASENAME}]: No 'Requirements' section found (required per META-PHASE A.0)"
+            ERRORS=$((ERRORS + 1))
+        else
+            REQ_SECTION=$(sed -n '/## Requirements/,/^## /p' "$f" 2>/dev/null || true)
+            if ! echo "$REQ_SECTION" | grep -qE '\|\s*AC-[0-9]+\s*\|'; then
+                echo "ERROR [plan/${BASENAME}]: Requirements section has no AC-N acceptance criteria rows"
+                ERRORS=$((ERRORS + 1))
+            fi
         fi
-        if ! grep -q '## Findings' "$f"; then
-            echo "WARN  [plan/${BASENAME}]: No 'Findings' section found"
+
+        # A.2 Architecture Decision section
+        if ! grep -q '## Architecture Decision' "$f"; then
+            echo "ERROR [plan/${BASENAME}]: No 'Architecture Decision' section found (required per META-PHASE A.2)"
+            ERRORS=$((ERRORS + 1))
+        else
+            ADR_SECTION=$(sed -n '/## Architecture Decision/,/^## /p' "$f" 2>/dev/null || true)
+            if ! echo "$ADR_SECTION" | grep -qE '\*\*ADR ID\*\*:\s*ADR-[0-9]+'; then
+                echo "WARN  [plan/${BASENAME}]: Architecture Decision has no concrete ADR-NNN id (placeholder not replaced?)"
+            fi
+            if ! echo "$ADR_SECTION" | grep -qE '\*\*Status\*\*:\s*(PROPOSED|ACCEPTED|SUPERSEDED|DEPRECATED)'; then
+                echo "WARN  [plan/${BASENAME}]: Architecture Decision has no valid Status (PROPOSED/ACCEPTED/SUPERSEDED/DEPRECATED)"
+            fi
         fi
-        if ! grep -q '## Alternatives' "$f"; then
-            echo "WARN  [plan/${BASENAME}]: No 'Alternatives & Trade-offs' section found"
-        fi
+
+        # A.3 Feasibility Research section
         if ! grep -q '## Feasibility Research' "$f"; then
             echo "ERROR [plan/${BASENAME}]: No 'Feasibility Research' section found (required per META-PHASE A.3)"
             ERRORS=$((ERRORS + 1))
         else
-            # Check Feasibility Research has actual table rows with A# assumptions
             FEAS_SECTION=$(sed -n '/## Feasibility Research/,/^## /p' "$f" 2>/dev/null || true)
             if ! echo "$FEAS_SECTION" | grep -qE '\|\s*A[0-9]+\s*\|'; then
                 echo "ERROR [plan/${BASENAME}]: Feasibility Research section has no A# assumption rows"
                 ERRORS=$((ERRORS + 1))
             fi
-            # Check for any REJECTED or INCONCLUSIVE assumptions
             if echo "$FEAS_SECTION" | grep -qE '\|\s*(REJECTED|INCONCLUSIVE)\s*\|'; then
                 echo "WARN  [plan/${BASENAME}]: Feasibility Research contains REJECTED or INCONCLUSIVE assumptions — the plan should be reworked before execution"
             fi
+        fi
+
+        # A.4/A.5 Phases and Test Plan
+        if ! grep -q '## Phases' "$f" && ! grep -q '### Phase' "$f"; then
+            echo "WARN  [plan/${BASENAME}]: No 'Phases' section found"
+        fi
+        if grep -q '### Phase' "$f"; then
+            if ! grep -q '#### Phase' "$f" || ! grep -q 'Test Plan' "$f"; then
+                echo "WARN  [plan/${BASENAME}]: Phase found but no 'Test Plan' subsection (required per META-PHASE A.5)"
+            fi
+            if ! grep -qiE 'AC coverage' "$f"; then
+                echo "WARN  [plan/${BASENAME}]: Phase has no 'AC coverage' field linking to AC-N"
+            fi
+        fi
+
+        if ! grep -q '## Findings' "$f"; then
+            echo "WARN  [plan/${BASENAME}]: No 'Findings' section found"
         fi
     done
 fi

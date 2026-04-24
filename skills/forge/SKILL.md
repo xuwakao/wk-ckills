@@ -141,7 +141,7 @@ If no task description is provided above, ask the user to describe the task befo
 
 This rule is enforced at two levels:
 
-**Harness level (automatic):** The `PreToolUse` hook (`pre-tool-use-guard.sh`) injects a compact rules summary into the conversation context every 10 tool calls, and blocks execution if documentation is not being maintained. This operates independently of Claude's memory.
+**Harness level (automatic):** The `PreToolUse` hook (`pre-tool-use-guard.sh`) injects a compact rules summary into the conversation context every 10 tool calls, and emits warnings when documentation maintenance lags behind execution (see thresholds in the hook). The hook never blocks tool calls — blocking here would deadlock the workflow when the only fix is to update docs. The `Stop` hook (`stop-guard.sh`) does block Claude from self-stopping while a plan's Status is ACTIVE. Both hooks operate independently of Claude's memory.
 
 **Conversation level (manual checkpoints):** Before each phase transition (C.1 Pre-Phase), re-read the current active plan document to refresh objectives and expected results.
 
@@ -189,7 +189,9 @@ After bootstrap, **the very first substantive step is A.0 — Requirements Analy
 
 Before any technical exploration, extract structured requirements from the task description. This separates **what the user wants** from **how we will build it**. Mixing these causes acceptance criteria to be written from the implementer's perspective rather than the user's, which loses the ability to verify delivery against original intent.
 
-Produce a `## Requirements` section in the plan document with three subsections:
+**Create the plan file.** Copy the template from `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md` to `docs/plan/<name>.md` (choose `<name>` as a concise descriptor of the task). Fill in the header fields (Created, Status=ACTIVE, Source). This file will be populated section-by-section through A.0 → A.5; A.6 only verifies completeness and finalizes.
+
+Now fill the `## Requirements` section:
 
 ```
 ## Requirements
@@ -399,7 +401,7 @@ Rules:
 - **Negative tests are mandatory.** For every expected behavior, identify at least one failure input/state and how the system must handle it.
 - **If a level does not apply** (e.g., pure library with no integration points): state explicitly `Level=integration: N/A because <reason>`. Silence is not acceptable.
 
-**A.6 — Write the plan** to `docs/plan/<name>.md` using the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`. Set `Status: ACTIVE`. The plan document must contain: Requirements (A.0), Alternatives (A.2), Feasibility Research (A.3), Phase definitions (A.4), Test Plan per phase (A.5).
+**A.6 — Finalize the plan.** The plan document at `docs/plan/<name>.md` has been built up incrementally during A.0–A.5 (A.0 creates the file by copying the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`, each subsequent step fills in its section). At A.6, verify the file contains all required sections — **Requirements** (A.0), **Architecture Decision / ADR-NNN** (A.2), **Feasibility Research** (A.3), **Phases with expected results, AC coverage, dependencies, risks, related ADRs** (A.4), **Test Plan per phase** (A.5) — and set `Status: ACTIVE`. Any missing section means the corresponding A.N step was skipped — go back and complete it.
 
 **A.7 — Create the corresponding `docs/progress/<name>.md`** using the progress template. Log the planning action to the progress document.
 
@@ -669,7 +671,22 @@ If an issue is deemed unsolvable after exhausting the escalation protocol (RULE 
 
 ### META-PHASE D: Completion
 
-**D.1** — Conduct a full review of all implemented phases.
+**D.1 — Full review.** Perform these checks and record findings in progress under `### META-PHASE D Review`:
+
+1. **Plan completeness**: every phase in the plan has Status=COMPLETE. If any is still PENDING/ACTIVE, go back to C and finish it.
+2. **All review + acceptance artifacts present**: each phase has `### Review: Phase N — Outcome`, `### Review: Phase N — Code`, and `### Functional Acceptance: Phase N` with PASS verdicts.
+3. **AC coverage audit**: every AC-N from A.0 Requirements is addressed by at least one completed phase. Any orphan AC → record as a gap.
+4. **NFR verification audit**: every NFR from A.0 was either tested at phase level (per Test Plan) or has an explicit deferred verification plan for D.
+5. **Knowledge artifact audit**:
+   - `docs/knowledge/api/` current for all public APIs touched in this plan? Missing/stale → record as issue.
+   - `docs/knowledge/onboarding/architecture.md` reflects architecture changes made by this plan?
+   - `docs/knowledge/ownership.md` reflects module changes (added/moved/renamed/removed)?
+   - Any operational procedure introduced by this plan needs a runbook in `docs/knowledge/runbooks/`?
+6. **Tribal knowledge test**: for each non-trivial decision, quirk, or workaround in the current plan, is it captured as a finding (DECISION/WARNING/DISCOVERY) AND promoted to the relevant knowledge artifact where structural?
+7. **Session-continuity test**: could a fresh Claude session resume work on this project using only `docs/` content? If not, record what is missing.
+8. **Open issues**: all `IN-PROGRESS` issues from this plan's execution are either resolved (`RESOLVED`) or explicitly deferred (`NOT-NEEDED` or `BLOCKED` with a gap finding).
+
+Any issue discovered here must be addressed before D.4 (Acceptance Summary) — either fix in place, or explicitly record as a GAP finding with a plan to resolve later.
 
 **D.2** — Run final compilation/build verification.
 

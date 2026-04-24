@@ -46,6 +46,55 @@ EOF
 - Module ownership: `docs/knowledge/ownership.md`
 EOF
 
+[ -f "${DOCS_DIR}/knowledge/onboarding/architecture.md" ] || cat > "${DOCS_DIR}/knowledge/onboarding/architecture.md" <<'EOF'
+# Architecture
+
+<!-- System architecture at a level someone can mentally model in 15 minutes.
+     Update when a plan introduces a major component, changes data flow, or
+     alters trust boundaries. -->
+
+## Major components
+
+## Data flow
+
+## Trust boundaries
+
+## External dependencies
+EOF
+
+[ -f "${DOCS_DIR}/knowledge/onboarding/conventions.md" ] || cat > "${DOCS_DIR}/knowledge/onboarding/conventions.md" <<'EOF'
+# Conventions
+
+<!-- Code style, naming, module boundaries, test patterns, git workflow
+     specific to this repo. -->
+
+## Code style
+
+## Naming
+
+## Module boundaries
+
+## Test patterns
+
+## Git workflow
+EOF
+
+[ -f "${DOCS_DIR}/knowledge/onboarding/development-setup.md" ] || cat > "${DOCS_DIR}/knowledge/onboarding/development-setup.md" <<'EOF'
+# Development Setup
+
+<!-- Tooling, environment, common commands, troubleshooting. -->
+
+## Prerequisites
+
+## Build
+
+## Run tests
+
+## Common commands
+
+## Troubleshooting
+EOF
+
 # Create .forge-counter to activate forge hooks
 COUNTER_FILE="${PROJECT_DIR}/.forge-counter"
 if [ ! -f "$COUNTER_FILE" ]; then
