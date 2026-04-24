@@ -60,6 +60,8 @@ This principle takes precedence in all phases: planning (choose robust approache
 - Many INCONCLUSIVE diagnosis rounds — each costs tokens; if stuck at 2+ iterations, prefer BLOCKED + user consultation over more speculative verification attempts.
 - Subagent calls with overly broad prompts causing the subagent to read huge swaths of the codebase when a targeted query would suffice.
 
+**Not waste:** SKILL.md itself is long, but it loads once when /forge is invoked and is then replaced by periodic `rules-compact.md` injections (via the L1 hook every 10 tool calls). The canonical SKILL.md stays authoritative and detailed; the compact version handles in-flight refresh. Re-reading SKILL.md is only needed when rules feel unclear.
+
 ## Mandatory Status Banner
 
 Every response you produce while the /forge workflow is active MUST begin with this banner as the very first line(s):
@@ -74,13 +76,25 @@ Every response you produce while the /forge workflow is active MUST begin with t
 
 - `plan` = filename of the currently active plan in `docs/plan/` (without `.md`). If multiple plans are ACTIVE, use the most recently modified one.
 - `phase` = current phase number / total phase count, parsed from the plan's `### Phase N:` headers.
-- `meta` = exactly one of: `A` (planning), `B` (plan-review), `C.1` (pre-phase), `C.2` (execute), `C.3` (review), `C.3-fix` (iterating fixes during multi-round review), `C.4` (acceptance), `C.5` (post-phase), `D` (completion), `RULE5` (debugging), `RULE7` (autonomous planning).
+- `meta` = exactly one of: `A.0` (requirements), `A.1` (analysis), `A.2` (ADR), `A.3` (feasibility), `A.4` (phase defs), `A.5` (test plan), `A.6` (write plan), `A.7` (write progress), `B` (plan-review), `C.1` (pre-phase), `C.2` (execute), `C.3a` (outcome review), `C.3b` (code review), `C.3-fix` (iterating fixes), `C.4` (acceptance), `C.5` (post-phase), `D.1` through `D.8` (completion sub-steps — use exact step), `RULE5` (debugging), `RULE7` (autonomous planning).
 - `issues` = count of issues with status `IN-PROGRESS` or `BLOCKED` across all files in `docs/issue/`.
 - `findings` = total count of `### F-NNN:` headers across all files in `docs/`.
 
 ### How to obtain field values
 
-Field values **must be obtained from actual file reads**, not from memory or estimation. If you have not read these files in the recent context, run a quick verification before responding:
+Field values **must be obtained from actual file reads** — not from memory or estimation — but need not be re-read on every response. Use this caching rule:
+
+**Read on state transition; reuse within stable state.**
+
+Refresh banner values by re-running the commands below when:
+- Entering a new meta-phase (A.N → A.N+1, B → C.1, C.5 → next phase's C.1, C.3 → C.3a, etc.)
+- After any Write/Edit to `docs/plan/`, `docs/progress/`, or `docs/issue/` (the hook signals this as a state change)
+- After marking a phase COMPLETE or a plan COMPLETED
+- When resuming after a user interaction (pause, answered Open Question, acceptance response)
+
+Within the same meta-phase with no state-changing writes, reuse the most recent values. This balances accuracy with token efficiency (per the Token & Context Efficiency rule about avoiding redundant reads).
+
+The refresh commands:
 
 ```bash
 # Get all values in one shot
@@ -89,7 +103,7 @@ grep -c '### F-' docs/**/*.md 2>/dev/null || echo 0
 grep -rE '(IN-PROGRESS|BLOCKED)' docs/issue/ 2>/dev/null | wc -l
 ```
 
-Inventing or estimating field values is a violation. A banner with fabricated numbers is worse than no banner — it gives a false signal of compliance.
+Inventing or estimating values without having done a read in the current state is a violation. A banner with fabricated numbers is worse than no banner — it gives a false signal of compliance.
 
 ### When `?` is permitted
 
@@ -143,12 +157,18 @@ ${CLAUDE_PLUGIN_ROOT}/skills/forge/SKILL.md
 - Do not pause between phases.
 - Do not ask "shall I continue?", "should I proceed?", or equivalent.
 - Do not explain what the next step will be — execute it directly.
-- The only reasons execution may stop:
-  1. The user interrupts via ESC/Ctrl+C or other Claude Code interrupt operations.
-  2. The user explicitly requests a pause via text (e.g., "暂停", "pause", "stop").
-  3. An unsolvable issue triggers a full re-plan (RULE 3, re-plan trigger).
-- When the user requests a pause via text: mark the current plan `Status: PAUSED`, then stop. The `Stop` hook will detect the non-ACTIVE status and allow the stop.
 - When committing code, invoke `/git-commit`.
+
+**The only reasons execution may stop (complete list — no others permitted):**
+
+1. **User interrupt**: the user presses ESC/Ctrl+C or uses another Claude Code interrupt operation. Handled by the harness.
+2. **User pause request**: the user explicitly requests a pause via text (e.g., "暂停", "pause", "stop"). Before stopping: mark the current plan `Status: PAUSED` so the `Stop` hook allows the stop.
+3. **Unsolvable issue (RULE 3 re-plan trigger)**: after exhausting the RULE 5e escalation protocol with no resolution.
+4. **A.0 Open Questions (mandatory stop)**: requirements are ambiguous, scope is unclear, or critical information is missing. STOP and ask the user — do NOT guess intent, do NOT invent requirements. Resume A.1 only after user answers. See META-PHASE A.0 for trigger conditions.
+5. **D.5 User Acceptance Gate (mandatory stop)**: after presenting the Acceptance Summary at D.4, STOP and wait for explicit user acceptance of each AC. Resume D.6 only after user replies with "accept" or rework instructions.
+6. **RULE 5b Stop Condition**: if after 2 investigation iterations no root cause is CONFIRMED, mark the issue BLOCKED and report to the user. Do not fix without a verified root cause.
+
+Reasons 4 and 5 are **mandatory stops** required by other rules, not interruptions. They are part of correct execution, not deviations from RULE 2.
 
 ---
 
@@ -160,6 +180,8 @@ Before any planning, initialize the documentation structure:
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/forge/scripts/init-docs.sh
 ```
+
+After bootstrap, **the very first substantive step is A.0 — Requirements Analysis, not A.1 (task analysis)**. Do not jump to reading code or exploring the codebase before producing the Requirements section. If requirements are ambiguous, STOP at A.0 Open Questions and ask the user before proceeding. The flow is strictly A.0 → A.1 → A.2 → A.3 → A.4 → A.5 → A.6 → A.7 → B; skipping or reordering steps is a violation.
 
 ### META-PHASE A: Planning
 
@@ -390,10 +412,10 @@ Re-read the entire plan document. Produce a **Plan Review** entry in the progres
 ```
 ### Plan Review
 
-| Phase | Dependencies OK | Expected Results Testable | Feasibility | Risks Identified | Stub/Real Marked | Verdict |
-|-------|----------------|--------------------------|-------------|-----------------|-----------------|---------|
-| 1     | [trace: no deps] | [how to verify each result] | [evidence] | [list risks] | [which are stubs] | PASS/FAIL/RISK |
-| 2     | [Phase 1 outputs X, Phase 2 needs X → OK / CIRCULAR] | ... | ... | ... | ... | ... |
+| Phase | Dependencies OK | Expected Results Testable | Feasibility | Risks Identified | Stub/Real Marked | AC Coverage | Test Plan Adequate | Verdict |
+|-------|----------------|--------------------------|-------------|-----------------|-----------------|-------------|--------------------|---------|
+| 1     | [trace: no deps] | [how to verify each result] | [cite A#] | [list risks w/ A# refs] | [which are stubs] | [AC-N traced] | [levels + neg tests] | PASS/FAIL/RISK |
+| 2     | [Phase 1 outputs X, Phase 2 needs X → OK / CIRCULAR] | ... | ... | ... | ... | ... | ... | ... |
 ```
 
 Each cell must contain **specific evidence**, not assertions. Examples of what is NOT acceptable vs acceptable:
@@ -404,13 +426,21 @@ Each cell must contain **specific evidence**, not assertions. Examples of what i
 | Expected Results Testable | "yes, can test" | "Verify via: `cargo test --lib hvf` must pass 3 tests; `cargo build` exit 0" |
 | Feasibility | "should be fine" or any text not referencing A# | "[A3 CONFIRMED] kqueue API available, `man kqueue` returned on macOS 14" or "[A7 CONFIRMED + POC] 30-line POC at /tmp/poc.rs exec success" |
 | Risks | "none" | "Risk: cros_async has no macOS backend [A5 CONFIRMED via `cargo tree -p cros_async -f '{p} {f}'`]" |
+| AC Coverage | "covers AC" | "AC-1 via expected results 1,2; AC-3 via expected result 4" |
+| Test Plan Adequate | "yes" | "unit: 3 cases covering AC-1 happy/empty/max; integration: T4 covers AC-1 failure mode; e2e: T5 covers AC-3; negative tests present" |
 
 **Feasibility column must reference the Feasibility Research assumptions (A1, A2, ...) from META-PHASE A.3.** A Feasibility cell that does not cite an A# means the feasibility was not actually verified — treat as FAIL.
+
+**AC Coverage column**: each phase must list which AC-N it contributes to, traced to specific expected results. A phase with no AC contribution is suspect — either the phase is unnecessary or the AC is missing.
+
+**Test Plan Adequate column**: verify that the Phase Test Plan (from A.5) has (1) unit/integration/E2E coverage as applicable, (2) negative tests for every expected behavior, (3) every test traces to AC or NFR, (4) NFR coverage for any NFR relevant to this phase. Missing any of these → FAIL.
 
 **Additional cross-cutting checks** (separate section after the table):
 
 1. **Dependency graph**: draw the actual dependency order. Verify no cycles. Format: `Phase 1 → Phase 2 → Phase 3; Phase 1 → Phase 4`. If a cycle exists, it must be resolved before proceeding.
-2. **Alternatives completeness**: for each rejected alternative in the plan, verify it has evidence-based rationale. Flag any that were dismissed without investigation.
+2. **Alternatives completeness**: for each rejected alternative in the plan (from A.2 ADR), verify it has evidence-based rationale. Flag any that were dismissed without investigation.
+3. **AC completeness**: every AC-N from A.0 must appear in at least one phase's AC Coverage. An AC not covered by any phase is a planning gap — fix before proceeding.
+4. **NFR coverage**: every NFR from A.0 must have at least one phase's Test Plan that exercises it, OR an explicit deferral to META-PHASE D verification with rationale.
 
 **Plan Review is iterative:**
 1. If any phase has verdict FAIL or RISK → fix the plan (direct edits permitted in META-PHASE B).
@@ -445,7 +475,8 @@ C.3 has two mandatory parts. **Both must be completed.** A phase without both re
 
 To run an independent review:
 - Use the `Agent` tool to spawn a subagent with `subagent_type: "general-purpose"` (or `"code-reviewer"` if available).
-- Prompt the subagent with: the plan document path, the phase number being reviewed, the AC the phase traces to, and the explicit instruction to produce the review artifact per the format below.
+- **Construct the prompt by replacing placeholders with concrete values** before calling the tool. The prompt templates in C.3a and C.3b contain placeholders in angle brackets: `<name>`, `N`, `<base-ref>`. Substitute them with the actual plan filename (without `.md`), the phase number, and the appropriate git ref (e.g., the commit SHA from the start of the phase, or `HEAD~K` where K is the commit count during the phase). Never pass a literal `<name>` or `N` to the subagent.
+- Include in the prompt: the concrete plan document path (`docs/plan/<actual-name>.md`), the phase number, the AC IDs the phase traces to (from A.4 AC coverage), and the specific files modified during this phase (from `git diff --name-only`).
 - The subagent reads the plan, the test plan, and the modified code independently. It has no knowledge of the implementer's internal reasoning.
 - The subagent returns the review table(s) as its final output.
 - The main assistant writes the subagent's output verbatim to the progress document as `### Review: Phase N — Outcome` and `### Review: Phase N — Code`.
@@ -694,7 +725,7 @@ Before proceeding to RULE 7, produce a **Retrospective** entry in the progress d
 
 **Process improvements for next plan**: [concrete changes to how future plans are constructed — new assumptions to always check, templates to add, etc.]
 
-**Findings promoted to DECISION**: [list F-NNN that represent architecture decisions worth preserving as ADRs]
+**DECISION findings promoted to ADR**: [list F-NNN entries (Type=DECISION) that meet ADR significance criteria — affect multiple modules, set codebase-wide patterns, will be referenced by future plans — and were promoted to new ADR-NNN entries. For each, note: F-NNN → ADR-NNN.]
 
 **Token & cost review**:
 
@@ -719,13 +750,56 @@ Ask the user to run `/usage` in Claude Code and paste the output here. Then anal
 
 ## RULE 4: Functional Acceptance
 
-After each phase implementation (META-PHASE C.4):
+After each phase implementation (META-PHASE C.4), execute the full acceptance procedure. All steps are mandatory — a phase cannot pass acceptance on build alone.
 
-1. **Build**: Compile, build, lint, or type-check as appropriate for the project.
-2. **Verify**: Compare actual outputs against the expected results documented in the plan for this phase. Be precise — partial matches are failures.
-3. **Result**:
-   - **PASS**: Log to progress with evidence (build output, test output). Continue to next phase.
-   - **FAIL**: Record the deviation in `docs/issue/<name>.md` with status `IN-PROGRESS`. Enter RULE 5 (debugging).
+### 4.1 Build verification
+- Compile, build, lint, or type-check as appropriate for the project.
+- Record the exact command and its output in the progress document.
+- A failing build is an immediate FAIL — do not proceed to 4.2.
+
+### 4.2 Execute the Test Plan (all three levels)
+
+Run every test defined in the phase's A.5 Test Plan. Record each by ID (T1, T2, ...) with exact command and output.
+
+| Level | Requirement | Evidence format |
+|-------|-------------|-----------------|
+| Unit | All unit tests in the Test Plan PASS | test runner output per test ID |
+| Integration | All integration tests in the Test Plan PASS | test runner output or integration harness logs per test ID |
+| E2E | All E2E tests in the Test Plan PASS | end-to-end script output or manual verification trace per test ID |
+
+Format in progress document under `### Functional Acceptance: Phase N`:
+
+```
+### Functional Acceptance: Phase N
+
+**Build**: [command] → [exit code + summary]
+
+**Test execution**:
+
+| Test ID | Level | Command | Result | Output excerpt |
+|---------|-------|---------|--------|----------------|
+| T1 | unit | cargo test --lib foo::bar | PASS | test foo::bar ... ok |
+| T2 | integration | ... | PASS | ... |
+| T3 | e2e | ... | PASS | ... |
+
+**Coverage check**: every AC-N in the phase's AC coverage has at least one corresponding test that passed.
+
+**Overall**: PASS / FAIL
+```
+
+### 4.3 Regression check
+- Run the full existing test suite (not just the new tests for this phase) to verify no prior functionality was broken.
+- Record: total tests run, passed, failed, and any newly-failing tests with their exact output.
+
+### 4.4 NFR verification
+- For each NFR from A.0 that applies to this phase, run the relevant verification (perf benchmark, security scan, compatibility check, etc.).
+- If an NFR is not testable at phase level, explicitly record `NFR-<name>: deferred to META-PHASE D verification` with rationale.
+
+### 4.5 Result
+- **PASS** (all of 4.1–4.4 clean): log to progress with evidence, continue to C.5.
+- **FAIL** (any step failed): record the deviation in `docs/issue/<name>.md` with status `IN-PROGRESS`, reference the failing test ID(s), enter RULE 5 (debugging). After fix, return to C.3 (re-review) before retrying C.4.
+
+A test that was planned in A.5 but not executed during C.4 is a violation — the Test Plan is the acceptance contract.
 
 ---
 
@@ -974,9 +1048,26 @@ Tags are lowercase, hyphenated, space-separated.
 - Internal reference: `[F-NNN]`.
 - Cross-document reference: `[plan/<name>#F-NNN]`, `[progress/<name>#F-NNN]`, `[issue/<name>#F-NNN]`.
 
-###### Promoting to ADR
+###### ADR vs DECISION finding — how they relate
 
-At the end of each plan (META-PHASE D.7 Retrospective), review all `DECISION` findings produced during the plan. If any represent long-term architecture decisions that should survive beyond this plan's lifetime, list them in the Retrospective under "Findings promoted to DECISION." These are the authoritative architecture decisions for the codebase.
+There are two decision records in this system, serving different purposes:
+
+- **ADR (A.2 output)**: one **primary architectural decision** per plan — the top-level approach choice that shapes the entire implementation. Formally tracked with ADR-NNN, PROPOSED→ACCEPTED lifecycle, and placed in the plan's `## Architecture Decision` section. One plan typically has exactly one ADR.
+
+- **DECISION finding** (F-NNN Type=DECISION): **smaller design decisions made during implementation** — choices about data structures, API shapes, module boundaries, naming conventions, error handling strategies, etc. These accumulate throughout C.2 Execute as trade-offs arise. One plan can produce many DECISION findings.
+
+Use ADR for: "We chose kqueue over cros_async for event multiplexing." (one big choice at plan start)
+
+Use DECISION finding for: "In `auth::session`, we chose a BTreeMap over HashMap to preserve iteration order for audit logging." (local choice discovered during implementation)
+
+###### Promoting DECISION findings to plan-level ADRs
+
+Occasionally a DECISION finding made during implementation turns out to be architecturally significant — it affects more than its local scope. At META-PHASE D.7 Retrospective, review all DECISION findings. For each:
+
+- If it meets **ADR significance criteria** (affects multiple modules, sets a codebase-wide pattern, will be referenced by future plans, constrains future design): promote it by creating a new ADR-NNN entry in the plan document that references the finding. List the promotion in the Retrospective under "Findings promoted to ADR."
+- If it remains local in scope: keep as a DECISION finding; do not promote.
+
+Promoted ADRs join the codebase's ADR history alongside the plan's primary ADR (from A.2).
 
 ###### Findings are not optional
 
@@ -1105,7 +1196,7 @@ When any document exceeds approximately 500 lines:
 
 ## RULE 7: Autonomous Task Planning
 
-This rule is triggered automatically after META-PHASE D step 6. It is NOT optional — do not stop or ask the user what to do next. Execute this rule immediately.
+This rule is triggered automatically after META-PHASE D.8. It is NOT optional — do not stop or ask the user what to do next. Execute this rule immediately.
 
 **Step 1: Assess current state.** Scan all documents in `docs/`:
 - Issues with status `IN-PROGRESS` or `BLOCKED` in `docs/issue/`
@@ -1134,18 +1225,49 @@ If none of the above exist, report completion to the user and stop.
 ## Execution Summary
 
 ```
-1. Bootstrap: run init-docs.sh
-2. META-PHASE A: create plan with phases and expected results
-3. META-PHASE B: review and refine plan (direct edits allowed)
-4. META-PHASE C: for each phase:
-   a. Pre-Phase: re-read plan, restate expected results
-   b. Execute (record findings as they occur)
-   c. Review: expected-vs-actual table → FAIL/PARTIAL items recorded as issues
-   d. Fix issues → re-review (iterate until all PASS)
-   e. Functional acceptance (RULE 4)
-   f. Mark complete (only with review + acceptance artifacts)
-5. META-PHASE D: final review, mark plan COMPLETED
-6. RULE 7: assess state → plan next task → continue (mandatory, do not stop)
+0. Bootstrap: run init-docs.sh (creates docs/{plan,progress,issue,knowledge}/ and .forge-counter)
+
+META-PHASE A — Planning:
+  A.0 Requirements (User Stories, AC-N, NFR, Open Questions)
+      → if ambiguous: STOP + ask user (RULE 2 exception)
+  A.1 Task analysis
+  A.2 ADR-NNN (formal Architecture Decision Record, PROPOSED)
+  A.3 Feasibility Research (A1, A2, ... all CONFIRMED → ADR ACCEPTED)
+  A.4 Phase definitions (each traces to AC, with deps/risks)
+  A.5 Test Plan per phase (via independent QA subagent; unit/integration/E2E)
+  A.6 Write plan.md
+  A.7 Create progress.md
+
+META-PHASE B — Plan Review:
+  Table covering dependencies / expected results / feasibility (cite A#) / risks
+  / stub-real / AC coverage / test plan adequacy. Multi-round until all PASS.
+  Plan document may be edited directly during B.
+
+META-PHASE C — Phase Execution (loop per phase):
+  C.1 Pre-Phase: re-read plan, restate expected results
+  C.2 Execute (record findings as they occur)
+  C.3 Review (by independent subagent, multi-round until clean):
+      C.3a Outcome (run Test Plan + derive supplementary tests)
+      C.3b Code (Investigation Log → Report Table with [investigation:] refs)
+      Any FAIL/CONCERN → record issue → fix → re-review
+  C.4 Functional Acceptance (RULE 4): build + unit/integration/E2E + regression + NFR
+  C.5 Post-Phase: mark COMPLETE (pre-condition: all review+acceptance artifacts)
+  (on bug: RULE 5 — investigation → verified root cause → fix → code review)
+
+META-PHASE D — Completion:
+  D.1 Full review + knowledge artifact audit (api/onboarding/ownership/runbooks)
+  D.2 Final build verification
+  D.3 Run check-doc-format.sh
+  D.4 Acceptance Summary (AC traceability table, NFR verification, gaps)
+  D.5 User Acceptance Gate — STOP + wait for user accept (RULE 2 exception)
+  D.6 Mark Status: COMPLETED
+  D.7 Retrospective (What went well/didn't/root causes/improvements/cost review)
+  D.8 → RULE 7
+
+RULE 7 — Autonomous Planning (mandatory, not optional):
+  Scan docs/ for open issues, [UNVERIFIED] findings, pending phases, GAPs.
+  If anything remains: create new plan, return to META-PHASE A.
+  If nothing remains: report completion to user and stop.
 ```
 
 Begin now.
