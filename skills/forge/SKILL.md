@@ -62,6 +62,72 @@ This principle takes precedence in all phases: planning (choose robust approache
 
 **Not waste:** SKILL.md itself is long, but it loads once when /forge is invoked and is then replaced by periodic `rules-compact.md` injections (via the L1 hook every 10 tool calls). The canonical SKILL.md stays authoritative and detailed; the compact version handles in-flight refresh. Re-reading SKILL.md is only needed when rules feel unclear.
 
+## Anti-Guessing — Evidence or Marker
+
+The default failure mode of LLM-driven engineering is **substituting training-data plausibility for actual investigation**. When a question arises about how a codebase works, what an API does, or whether an approach is feasible, the path of least resistance is to produce a confident-sounding answer based on general knowledge. This is the single largest source of incorrect plans, broken implementations, and false debugging conclusions.
+
+This rule defines the boundary: every technical claim must either be **grounded** (cite evidence in line) or **marked** (tagged `[GUESS]` until verified).
+
+### What counts as a "technical claim"
+
+Any statement asserting a fact about technical reality, including:
+- "Function `foo` does X" / "Module `bar` exposes Y"
+- "This library supports Z" / "This API returns W"
+- "On macOS this syscall behaves differently"
+- "This dependency has a method called K"
+- "The codebase already has a similar feature in module M"
+- "This approach is faster / more idiomatic / standard practice"
+- "X version is compatible with Y version"
+
+Statements about your own intentions, structure of the plan, or workflow steps are **not** technical claims and do not need this treatment.
+
+### Grounding rules
+
+A grounded technical claim cites evidence inline using one of these forms:
+
+- File reference: `[src/auth/session.rs:L42-67]` (exact file + lines that prove the claim)
+- Command output: `` [verified: `cargo tree -p foo`] `` (command run, output observed)
+- Documentation reference: `[docs.rs/foo/0.5.2/foo/struct.Bar.html#method.baz]` (with URL and what the doc says)
+- Cross-reference to prior verification: `[A3 CONFIRMED]` or `[F-NNN]` (pointing to existing evidence in the plan/findings)
+- POC reference: `[POC: /tmp/poc.rs, output: ...]`
+
+Without one of these, the claim is a **guess** — even if it is correct.
+
+### Marker rules
+
+When you are about to make a technical claim and have not (yet) gathered evidence, you have two options:
+
+**Option A: Verify first.** Run the necessary tool call (Read/Grep/Bash) to gather evidence, then state the claim with the citation. This is preferred.
+
+**Option B: Mark the claim and verify before acting.** Tag the claim with `[GUESS]` inline:
+
+> "The function probably uses a mutex internally [GUESS] — to verify: read `src/cache.rs:Cache::get`."
+
+A `[GUESS]`-tagged claim is provisional. It cannot be relied upon for:
+- Plan structure (no `[GUESS]` claims as the basis for phase decomposition)
+- Code design decisions (no `[GUESS]` claims as the basis for chosen approaches)
+- Bug diagnosis (no `[GUESS]` claims as confirmed root causes)
+- Acceptance verdicts (no `[GUESS]` claims as PASS evidence)
+
+Before any of the above, every `[GUESS]` must be resolved into either a grounded claim (evidence cited) or rejected. The verification action stated in the marker is a contract — execute it, then update the claim.
+
+### Where guesses commonly hide
+
+These are the situations where guessing is most tempting and most damaging:
+
+1. **"How does this codebase work?"** — When asked about an unfamiliar codebase, default to `Read`/`Grep` for the relevant module before describing it. Do not infer from naming or directory structure alone.
+2. **"How does this library behave?"** — Library documentation can be wrong, outdated, or absent. The actual behavior is in the source. Read the dependency source for any non-trivial integration. Mark `[GUESS]` until you have either run it or read its implementation.
+3. **"What's the standard way to do X?"** — There is rarely one standard way. Different ecosystems and codebases differ. Search this codebase first (Prior Art Survey, see A.2) for how X is done here, before invoking general patterns.
+4. **"This should work on platform Y."** — Cross-platform claims must be verified per platform. `man <syscall>` on the actual target, `cargo tree --target=<triple>`, or POC compiled for target.
+5. **"This will be fast / scalable."** — Performance claims require benchmarks, not reasoning from data structure choice alone. Mark `[GUESS]` until measured.
+6. **"The bug is probably in X."** — Diagnosis hypotheses (RULE 5b H1, H2...) are explicitly guesses until runtime verification confirms. Never write a CONFIRMED status without runtime evidence.
+
+### Enforcement
+
+- C.3b Code Review subagent must scan the implementation for un-grounded claims in comments or commit messages and flag them as Workarounds-column issues.
+- META-PHASE B Plan Review must reject any phase whose Expected Results, Risks, or Feasibility cite a claim without grounding (Feasibility cell already requires `[A#]` per existing rule; this extends to all cells).
+- Any progress log or finding statement that asserts a technical fact without grounding is a violation. The PostToolUse hook can be extended to scan for un-grounded claims (future improvement).
+
 ## Mandatory Status Banner
 
 Every response you produce while the /forge workflow is active MUST begin with this banner as the very first line(s):
@@ -239,11 +305,87 @@ The stop-and-ask is an explicit exception to RULE 2 (continuous execution). Aski
 
 When asking: list the Open Questions in the plan document and in your response to the user. Wait for answers. Only proceed to A.1 after all Open Questions have been resolved with user input. Update the Requirements section with the confirmed answers before moving on.
 
-**A.1 — Task analysis.** Read existing code, understand the codebase landscape relevant to the requirements from A.0, and explore how the requirements could be implemented.
+**A.1 — Task Analysis & Codebase Reconnaissance (must produce an artifact).**
+
+Reading code is not enough — produce a **Codebase Reconnaissance Log** in the plan document under `## Codebase Reconnaissance` to prove the reading happened and to capture what was learned. Without this artifact, A.1 was skipped.
+
+The log records concrete actions taken to understand the codebase:
+
+```
+## Codebase Reconnaissance
+
+### Search actions
+| # | Action | Tool / Command | Outcome |
+|---|--------|----------------|---------|
+| S1 | Locate existing auth code | `Grep "fn login\|struct Session" src/` | found src/auth/session.rs (L1-180), src/auth/login.rs (L1-92) |
+| S2 | Identify error type convention | `Grep "type Result" src/` | project uses Result<T, AuthError> in src/error.rs:L8 |
+| S3 | Test conventions | `Read tests/auth/`, `Glob tests/**/*.rs` | tests use `#[tokio::test]` with `mock_db()` fixture |
+| S4 | Module ownership | `Read docs/knowledge/ownership.md` | auth module: <responsible note>; depends on db, crypto |
+
+### Files read (with what each contributed)
+- `src/auth/session.rs:L1-180` — current Session struct, token expiry mechanism
+- `src/auth/login.rs:L1-92` — entry point, currently uses bcrypt
+- `src/error.rs:L1-50` — AuthError variants
+- `Cargo.toml` — current crypto deps: bcrypt 0.15, ring 0.17
+
+### Existing patterns identified (reusable)
+- **Pattern 1**: All auth-related errors flow through AuthError enum at src/error.rs
+- **Pattern 2**: Async functions use `#[tracing::instrument]` for observability (sample at src/auth/session.rs:L42)
+- **Pattern 3**: Tests instantiate via `tests/common::mock_db()` rather than direct DB connection
+
+### Similar features already in the codebase (use as reference)
+- API key validation at src/auth/api_key.rs — same shape as planned session validation, can mirror the structure
+
+### Constraints discovered
+- C-1: Cannot break the v1 API contract per AC-3 (NFR compatibility)
+- C-2: Existing sessions in production DB use SHA-256 hashed tokens — migration path required if changing
+```
+
+Rules:
+- **Every entry must reference a real tool call.** `Grep`, `Read`, `Glob`, `Bash` outputs are evidence; assertions like "the auth module probably handles this" are not.
+- **The log captures what is, not what could be.** Speculation about future implementation does not belong here — that's A.4. A.1 is descriptive of the current state.
+- **Identify reusable patterns and similar features.** The most common waste in implementation is reinventing what the codebase already has. The "Similar features" subsection forces this discovery.
+- **Identify constraints up front.** Anything in the codebase that limits the approach (versioning, conventions, existing schema) should be surfaced now, not discovered mid-execution.
+- **A.1 directly informs A.2.** Alternatives considered in A.2 should reference reconnaissance findings ("Approach 1 follows the pattern already used at src/auth/api_key.rs").
+
+If the recon turns up findings worth preserving as DISCOVERY findings (per RULE 6 Findings Mechanism), record them in `## Findings` of the plan document with `Type: DISCOVERY` and `Tags: layer:<area>`.
 
 **A.2 — Approach identification & Architecture Decision Record (ADR).**
 
-Identify alternative approaches. For each, document technical pros, cons, and rationale. Tentatively select the approach with the strongest technical justification, pending feasibility verification in A.3.
+Before listing alternatives, conduct a **Prior Art Survey** — research existing solutions in this codebase, in the dependencies, and in the broader ecosystem. Pulling alternatives from training memory alone produces a list of plausible-sounding generic options that may not match this codebase's reality or the current state of practice.
+
+###### Stage 0 — Prior Art Survey (mandatory before listing alternatives)
+
+Produce a `### Prior Art Survey` subsection inside `## Architecture Decision`:
+
+```
+### Prior Art Survey
+
+| # | Source | Search action | Findings |
+|---|--------|--------------|----------|
+| P1 | This codebase | `Grep "fn validate_token\|TokenValidator" src/` | api_key.rs uses HMAC; no JWT yet |
+| P2 | Direct dependency | `Read deps/jwt-rs/src/lib.rs` (or `cargo doc`) | jwt-rs supports RS256 + HS256 only |
+| P3 | Comparable projects | WebSearch "rust session token rotation crates" | tower-sessions (popular, async), session_cookie (sync), axum-login (framework-tied) |
+| P4 | Authoritative docs | `WebFetch <RFC-7519-URL>` | JWT spec defines `exp`, `iat`, `nbf` claims |
+| P5 | Known anti-patterns | WebSearch "JWT pitfalls auth common mistakes" | algorithm confusion, exp not enforced, key rotation issues |
+```
+
+Source categories (use those that apply, skip ones that don't):
+
+- **This codebase** — search for similar features, reusable patterns (often discovered in A.1 reconnaissance; reference rather than re-discovering).
+- **Direct dependencies** — if your approach builds on an existing library, read its source/docs to know what's actually available.
+- **Comparable projects / crates / packages** — what do mature implementations of similar functionality look like? Use `WebSearch` for "<task> <language> crates" or "popular <task> libraries".
+- **Authoritative specifications** — RFC, W3C spec, language standard, vendor docs. Fetch with `WebFetch` and cite the relevant section.
+- **Known pitfalls / anti-patterns** — search "<task> common mistakes" or "<task> security issues". Surfaces failure modes others have hit.
+
+Rules:
+- Each row needs a real `Grep`/`Read`/`WebSearch`/`WebFetch` action. Pulling "I recall that pattern X exists" is a `[GUESS]` violation per Anti-Guessing rule.
+- The Survey may eliminate alternatives before they are listed (e.g., "P3 confirmed tower-sessions handles all cases AC-1, AC-2 — reinventing is not justified") or surface alternatives you wouldn't have considered.
+- For non-trivial design tasks (new system component, new external integration, novel algorithm), Prior Art Survey is mandatory. For trivial tasks (small bugfix, isolated refactor), document explicitly: `Prior Art Survey: N/A — task scope is local refactor of <module>; no external pattern applies`.
+
+###### Stage 1 — Approach identification (informed by survey)
+
+Now identify alternative approaches. Each alternative must reference Prior Art findings (which P# inspired it or which P# rules it out). For each, document technical pros, cons, and rationale. Tentatively select the approach with the strongest technical justification, pending feasibility verification in A.3.
 
 The A.2 output is a formal **Architecture Decision Record (ADR)**, not just a comparison table. Produce an `## Architecture Decision` section in the plan document with this structure:
 
@@ -401,7 +543,7 @@ Rules:
 - **Negative tests are mandatory.** For every expected behavior, identify at least one failure input/state and how the system must handle it.
 - **If a level does not apply** (e.g., pure library with no integration points): state explicitly `Level=integration: N/A because <reason>`. Silence is not acceptable.
 
-**A.6 — Finalize the plan.** The plan document at `docs/plan/<name>.md` has been built up incrementally during A.0–A.5 (A.0 creates the file by copying the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`, each subsequent step fills in its section). At A.6, verify the file contains all required sections — **Requirements** (A.0), **Architecture Decision / ADR-NNN** (A.2), **Feasibility Research** (A.3), **Phases with expected results, AC coverage, dependencies, risks, related ADRs** (A.4), **Test Plan per phase** (A.5) — and set `Status: ACTIVE`. Any missing section means the corresponding A.N step was skipped — go back and complete it.
+**A.6 — Finalize the plan.** The plan document at `docs/plan/<name>.md` has been built up incrementally during A.0–A.5 (A.0 creates the file by copying the template at `${CLAUDE_PLUGIN_ROOT}/skills/forge/templates/plan.md`, each subsequent step fills in its section). At A.6, verify the file contains all required sections — **Requirements** (A.0), **Codebase Reconnaissance** (A.1), **Architecture Decision** including **Prior Art Survey** and **ADR-NNN** (A.2), **Feasibility Research** (A.3), **Phases with expected results, AC coverage, dependencies, risks, related ADRs** (A.4), **Test Plan per phase** (A.5) — and set `Status: ACTIVE`. Any missing section means the corresponding A.N step was skipped — go back and complete it.
 
 **A.7 — Create the corresponding `docs/progress/<name>.md`** using the progress template. Log the planning action to the progress document.
 

@@ -51,6 +51,36 @@ if [ -d "${DOCS_DIR}/plan" ]; then
             fi
         fi
 
+        # A.1 Codebase Reconnaissance section
+        if ! grep -q '## Codebase Reconnaissance' "$f"; then
+            echo "ERROR [plan/${BASENAME}]: No 'Codebase Reconnaissance' section found (required per META-PHASE A.1)"
+            ERRORS=$((ERRORS + 1))
+        else
+            RECON_SECTION=$(sed -n '/## Codebase Reconnaissance/,/^## /p' "$f" 2>/dev/null || true)
+            if ! echo "$RECON_SECTION" | grep -qE '\|\s*S[0-9]+\s*\|'; then
+                echo "ERROR [plan/${BASENAME}]: Codebase Reconnaissance has no S# search action rows"
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+
+        # A.2 Stage 0 Prior Art Survey
+        if grep -q '## Architecture Decision' "$f"; then
+            ADR_SECTION_FULL=$(sed -n '/## Architecture Decision/,/^## /p' "$f" 2>/dev/null || true)
+            if ! echo "$ADR_SECTION_FULL" | grep -q '### Prior Art Survey'; then
+                echo "ERROR [plan/${BASENAME}]: Architecture Decision has no 'Prior Art Survey' subsection (required per A.2 Stage 0)"
+                ERRORS=$((ERRORS + 1))
+            elif ! echo "$ADR_SECTION_FULL" | grep -qE '\|\s*P[0-9]+\s*\|'; then
+                echo "WARN  [plan/${BASENAME}]: Prior Art Survey has no P# rows — was the survey actually conducted?"
+            fi
+        fi
+
+        # Anti-Guessing — flag unresolved [GUESS] markers
+        GUESS_COUNT=$(grep -c '\[GUESS\]' "$f" 2>/dev/null | head -1 || true)
+        GUESS_COUNT=${GUESS_COUNT:-0}
+        if [ "$GUESS_COUNT" -gt 0 ]; then
+            echo "WARN  [plan/${BASENAME}]: ${GUESS_COUNT} unresolved [GUESS] marker(s) — must be verified before relying on these claims"
+        fi
+
         # A.2 Architecture Decision section
         if ! grep -q '## Architecture Decision' "$f"; then
             echo "ERROR [plan/${BASENAME}]: No 'Architecture Decision' section found (required per META-PHASE A.2)"
@@ -136,7 +166,8 @@ if [ -d "${DOCS_DIR}/issue" ]; then
         fi
 
         # Check for issues without root cause
-        OPEN_WITHOUT_RC=$(grep -c 'IN-PROGRESS' "$f" 2>/dev/null || echo 0)
+        OPEN_WITHOUT_RC=$(grep -c 'IN-PROGRESS' "$f" 2>/dev/null | head -1 || true)
+        OPEN_WITHOUT_RC=${OPEN_WITHOUT_RC:-0}
         if [ "$OPEN_WITHOUT_RC" -gt 0 ]; then
             echo "INFO  [issue/${BASENAME}]: ${OPEN_WITHOUT_RC} issue(s) still IN-PROGRESS"
         fi

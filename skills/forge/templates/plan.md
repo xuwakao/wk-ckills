@@ -45,6 +45,33 @@ Source: {{SOURCE_REFERENCE}}
 
 <!-- List anything ambiguous. STOP and wait for user before proceeding to A.1. -->
 
+## Codebase Reconnaissance
+
+<!-- A.1 — Prove that codebase reading actually happened. Every entry references
+     a real Grep/Read/Glob/Bash action. -->
+
+### Search actions
+
+| # | Action | Tool / Command | Outcome |
+|---|--------|----------------|---------|
+| S1 | [what was searched for] | [exact command] | [what was found] |
+
+### Files read (with what each contributed)
+
+- `path/to/file:Lstart-Lend` — [what was learned]
+
+### Existing patterns identified (reusable)
+
+- **Pattern 1**: [pattern + reference]
+
+### Similar features already in the codebase (use as reference)
+
+- [feature path] — [why relevant]
+
+### Constraints discovered
+
+- C-1: [constraint + cite]
+
 ## Architecture Decision
 
 <!-- A.2 — Formal Architecture Decision Record (ADR). -->
@@ -54,6 +81,19 @@ Source: {{SOURCE_REFERENCE}}
 **Status**: PROPOSED
 **Date**: {{TIMESTAMP}}
 **Context**: [problem, constraints, link to AC-N/NFRs]
+
+### Prior Art Survey
+
+<!-- A.2 Stage 0 — Mandatory before listing alternatives. Each row needs a real
+     Grep/Read/WebSearch/WebFetch action. -->
+
+| # | Source | Search action | Findings |
+|---|--------|--------------|----------|
+| P1 | This codebase | [Grep/Read command] | [what was found] |
+| P2 | Direct dependency | [command or doc URL] | [what was found] |
+| P3 | Comparable projects | [WebSearch query] | [findings + names] |
+| P4 | Authoritative spec | [WebFetch URL] | [relevant section] |
+| P5 | Known pitfalls | [WebSearch query] | [anti-patterns surfaced] |
 
 ### Alternatives Considered
 
