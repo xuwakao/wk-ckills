@@ -600,16 +600,61 @@ A one-line "review complete, no changes" is **never acceptable**. The table and 
 - If the plan was corrected since last read, verify the corrections are understood before proceeding.
 
 #### C.2 Execute
-- Implement the phase according to the plan.
-- Follow existing code conventions and patterns.
-- **During implementation, actively record findings** to the Findings section of the relevant document (plan, progress, or issue). A finding is any non-obvious information discovered during work that would be valuable for future reference. Examples:
-  - API behavior that differs from documentation
-  - Undocumented constraints or limitations of a dependency
-  - Performance characteristics observed during testing
-  - Architectural decisions forced by the codebase (and why)
-  - Platform-specific quirks or incompatibilities
-  - Alternative approaches considered and rejected during implementation (with reason)
-- Record findings as they occur, not after the fact. Each finding: `### F-NNN: <title>` in the Findings section, referenced inline where relevant.
+
+The plan (ADR + A.1 patterns + A.4 phase definition + A.5 test plan) is the contract for this phase's implementation. Implementation must remain **faithful to the contract**. Implementation drift — the slow accumulation of "small deviations" each justified locally — is a primary failure mode. Even when the result works, drift erases the architectural reasoning that justified the plan, making future maintenance and verification harder.
+
+##### Implementation Faithfulness
+
+- Implement the phase according to the plan: respect the ADR's chosen approach, reuse the patterns identified in A.1 Codebase Reconnaissance, honor the constraints (C-1, C-2, ...) from A.1, and implement against the AC coverage stated in the phase.
+- Follow existing code conventions and patterns identified in A.1 (the "Existing patterns" and "Similar features" subsections of Codebase Reconnaissance). Do not invent new patterns when an existing one is documented as reusable.
+
+##### Deviation Recording (mandatory, real-time)
+
+Whenever an implementation choice deviates from the plan — using a different pattern than A.1 identified, choosing a different data structure or API shape than the ADR implied, taking a shortcut, special-casing a scenario, skipping a constraint — **record the deviation immediately as a finding**. Not "later", not "I'll add it after this works". The moment the decision is made.
+
+Required form:
+
+```
+### F-NNN: Deviation from plan — <one-line summary>
+
+**Type**: DECISION (if the deviation is a deliberate design choice) | WARNING (if the deviation is a known compromise to revisit)
+**Status**: ACTIVE
+**Date**: <timestamp>
+**Tags**: deviation phase:<N> [other relevant tags]
+**Context**: Phase <N>, file <path:lines>
+
+**Statement**: The plan/ADR specified <X>. The implementation chose <Y>.
+
+**Evidence**: [file:lines showing the chosen implementation]
+
+**Impact / So what**: [does this deviation invalidate any AC, A# assumption, or phase expected result? If so, escalate.]
+
+**Reason for deviation**: [evidence-based — why was the planned approach not followed? "Easier" or "cleaner" alone is insufficient. State what specifically about the planned approach was problematic.]
+
+**Plan correction status**: [one of:]
+- [Plan correction not needed] — the deviation is local and does not affect plan structure
+- [Plan correction logged at progress/<name>.md#<timestamp>] — material deviation; plan corrected per "Plan Correction During Execution" rules
+- [PROPOSED — pending review] — the deviation may be material; flag for review at C.3
+```
+
+Rules:
+
+- **No silent deviations.** A deviation discovered at C.3 (review) without a real-time C.2 finding is a violation. Either it was deliberate (record it now per the format above, with date marked as the actual decision time) or it was unintentional (revert it, or escalate as a finding with WARNING type explaining the unintentional change).
+- **Material deviations require plan correction.** If the deviation changes the ADR's approach, invalidates an A# assumption, or affects AC coverage: pause C.2, follow "Plan Correction During Execution" to record the correction, then resume.
+- **Trivial deviations are not exempt.** Even small choices (a different naming convention, an additional helper function, a slightly different error type) deserve recording if they depart from a pattern A.1 identified as reusable. Trivial deviations have low impact individually but compound into drift collectively.
+
+##### Findings record (general — non-deviation discoveries)
+
+Beyond deviations, record other findings as they occur during implementation. Examples:
+
+- API behavior that differs from documentation
+- Undocumented constraints or limitations of a dependency
+- Performance characteristics observed during testing
+- Architectural decisions forced by the codebase (and why)
+- Platform-specific quirks or incompatibilities
+- Alternative approaches considered and rejected during implementation (with reason)
+
+Each: `### F-NNN: <title>` in the Findings section per RULE 6 Findings Mechanism, referenced inline where relevant. Empty Findings sections at the end of a phase signal that recording was skipped.
 
 #### C.3 Review (two parts: outcome + code)
 
@@ -701,6 +746,20 @@ Required investigation actions per modified file:
    - Tool call: run the test command (e.g., `cargo test --lib <name> -- --nocapture`, `pytest -v -k <name>`)
    - Record: exact test output
 
+Required investigation actions also include **Plan Adherence checks**:
+
+7. **Plan Adherence — read the plan side-by-side with the code**:
+   - Tool call: `Read` the plan's ADR (Architecture Decision section) — what is the chosen approach, key assumptions, consequences?
+   - Tool call: `Read` the plan's Codebase Reconnaissance — what existing patterns were marked reusable, what constraints (C-1, C-2…) were identified?
+   - Tool call: `Read` the phase definition — what AC coverage was promised, what expected results were specified?
+   - For each modified file, compare the implementation against these plan elements:
+     - Did the file's structure follow the chosen approach (not an alternative the ADR rejected)?
+     - Were the reusable patterns from A.1 actually reused, or was a new pattern invented?
+     - Were the A.1 constraints respected throughout?
+     - Does the public API shape match what the phase definition implied?
+   - Tool call: `Grep` the plan's Findings section for entries tagged `deviation` or any deviation findings recorded during C.2.
+   - Record: which plan elements the file faithfully implements, which it deviates from, and whether deviations have C.2 findings recording them.
+
 Format the Investigation Log as:
 
 ```
@@ -712,12 +771,20 @@ Output:
   path/a.rs
   path/b.rs
 
+#### Plan elements (from the plan)
+- ADR-NNN chosen approach: <one-line summary>
+- A.1 reusable patterns: Pattern 1 = <X>; Pattern 2 = <Y>
+- A.1 constraints: C-1 = <X>; C-2 = <Y>
+- Phase N AC coverage: AC-1, AC-3
+- Recorded deviations during C.2: F-005 (deviation from Pattern 1 at file/a.rs:L42), F-007 (deviation from C-2 at file/b.rs:L88)
+
 #### path/a.rs
 - Read: full file, 243 lines
 - Anti-pattern scan: `Grep -n -E '...' path/a.rs` → no matches
 - Error path scan: 4 matches at lines 17, 52, 89, 134; propagation traced (see notes)
 - Loops: 1 loop at line 102–118, complexity O(n) where n = input vec size
 - Tests: `cargo test --lib foo` → 3 passed, 0 failed (output: ...)
+- Plan adherence: follows ADR approach (uses kqueue per A3); reuses Pattern 1 (error type per src/error.rs); respects C-1; one deviation at L42 from Pattern 1 — recorded in F-005 with rationale.
 
 #### path/b.rs
 ...
@@ -734,9 +801,9 @@ Every evidence cell must reference a specific entry from the Investigation Log. 
 ```
 ### Review: Phase N — Code
 
-| File | Logic | Edge Cases | Error Handling | Performance | Production Quality | Workarounds | Style | Verdict |
-|------|-------|------------|----------------|-------------|-------------------|-------------|-------|---------|
-| path/a.rs | [investigation: a.rs · Read] traced fn foo: branches at L17 handle empty vec; L52 handles >MAX | [investigation: a.rs · tests] boundary test for empty input passed at L103 of test output | [investigation: a.rs · error scan] all 4 error sites propagate via `?` | [investigation: a.rs · loops] O(n) single-pass, no nested loops, no allocations in loop body | naming consistent with sibling mod, no magic numbers | [investigation: a.rs · anti-pattern scan] 0 matches | consistent with surrounding modules (verified by reading 2 sibling files) | PASS |
+| File | Logic | Edge Cases | Error Handling | Performance | Production Quality | Workarounds | Style | Plan Adherence | Verdict |
+|------|-------|------------|----------------|-------------|-------------------|-------------|-------|----------------|---------|
+| path/a.rs | [investigation: a.rs · Read] traced fn foo: branches at L17 handle empty vec; L52 handles >MAX | [investigation: a.rs · tests] boundary test for empty input passed at L103 of test output | [investigation: a.rs · error scan] all 4 error sites propagate via `?` | [investigation: a.rs · loops] O(n) single-pass, no nested loops, no allocations in loop body | naming consistent with sibling mod, no magic numbers | [investigation: a.rs · anti-pattern scan] 0 matches | consistent with surrounding modules (verified by reading 2 sibling files) | [investigation: a.rs · plan adherence] follows ADR-005 kqueue approach; reuses Pattern 1 from A.1; one recorded deviation F-005 with rationale; no silent deviations | PASS |
 
 **Files reviewed**: N
 **Overall Verdict**: PASS / FAIL
@@ -751,15 +818,16 @@ Column criteria (each cell MUST reference the investigation and contain a specif
 - **Production Quality**: maintainability concerns, naming, missing documentation on non-obvious logic. Cite specific lines.
 - **Workarounds**: cite the anti-pattern scan output. Zero matches or justified matches (planned stubs with cross-reference) are acceptable.
 - **Style**: cite sibling files/modules examined to verify consistency.
+- **Plan Adherence**: cite the plan adherence investigation. State explicitly: (a) does the implementation follow the ADR's chosen approach? (b) are A.1 reusable patterns actually reused? (c) are A.1 constraints respected? (d) does the public API match phase definition? (e) every deviation from the plan has a corresponding C.2 finding recorded with rationale (NO silent deviations). Any "no" or any silent deviation → FAIL.
 
 **Cells without investigation references are invalid.** A cell saying "logic is correct" without `[investigation: ...]` means the investigation was skipped — treat as FAIL.
 
 Verdict per file:
 - **PASS**: every column has a concrete observation backed by the investigation, and no concerns were found.
 - **CONCERN**: issues identified by the investigation that should be addressed but are not blockers (note them in a finding).
-- **FAIL**: investigation revealed issues that violate Overriding Principle, RULE 5a, or bugs not covered by the outcome review.
+- **FAIL**: investigation revealed issues that violate Overriding Principle, RULE 5a, contain bugs not covered by the outcome review, OR contain silent deviations from the plan.
 
-A file marked CONCERN is acceptable only if a finding is recorded explaining the deferred work and a plan to address it. FAIL must be fixed before moving on.
+A file marked CONCERN is acceptable only if a finding is recorded explaining the deferred work and a plan to address it. FAIL must be fixed before moving on. **Silent deviations from the plan are FAIL** — record them as findings retroactively (with the actual decision time) AND either (a) revert the deviation if it was unintentional, or (b) propose a Plan Correction if the deviation should stand.
 
 ##### Findings audit
 

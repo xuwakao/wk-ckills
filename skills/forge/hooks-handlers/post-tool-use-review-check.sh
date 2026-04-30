@@ -60,12 +60,16 @@ for planfile in "$PLAN_DIR"/*.md; do
             # Check 1c: Code Review Investigation section exists (evidence of actual investigation)
             if grep -q "### Review: Phase ${PHASE_NUM} — Code" "$PROGRESS_FILE" 2>/dev/null; then
                 if ! grep -q "### Review: Phase ${PHASE_NUM} — Code · Investigation" "$PROGRESS_FILE" 2>/dev/null; then
-                    echo "ACTION REQUIRED: C.3b Code Review for Phase ${PHASE_NUM} has no '### Review: Phase ${PHASE_NUM} — Code · Investigation' section. Per C.3b Stage 1, the investigation log (listing files read, anti-pattern scans, error scans, test outputs) must be written BEFORE the review table."
+                    echo "ACTION REQUIRED: C.3b Code Review for Phase ${PHASE_NUM} has no '### Review: Phase ${PHASE_NUM} — Code · Investigation' section. Per C.3b Stage 1, the investigation log (listing files read, anti-pattern scans, error scans, test outputs, plan adherence checks) must be written BEFORE the review table."
                 fi
                 # Check that evidence cells reference [investigation: ...]
                 CODE_REVIEW_SECTION=$(sed -n "/### Review: Phase ${PHASE_NUM} — Code$/,/^### /p" "$PROGRESS_FILE" 2>/dev/null | head -40 || true)
                 if [ -n "$CODE_REVIEW_SECTION" ] && ! echo "$CODE_REVIEW_SECTION" | grep -q 'investigation:'; then
                     echo "ACTION REQUIRED: C.3b Code Review table for Phase ${PHASE_NUM} has no [investigation: ...] references in its cells. Each cell must cite the Investigation Log entry that backs the observation, otherwise the review was written without investigation."
+                fi
+                # Check 1d: Plan Adherence column present
+                if [ -n "$CODE_REVIEW_SECTION" ] && ! echo "$CODE_REVIEW_SECTION" | grep -qi 'Plan Adherence'; then
+                    echo "ACTION REQUIRED: C.3b Code Review table for Phase ${PHASE_NUM} is missing the Plan Adherence column. Verify (a) ADR approach followed, (b) A.1 patterns reused, (c) A.1 constraints respected, (d) public API matches phase definition, (e) every deviation has a C.2 finding (no silent deviations)."
                 fi
             fi
 
