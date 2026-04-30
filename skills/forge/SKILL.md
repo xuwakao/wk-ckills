@@ -805,11 +805,86 @@ If the plan is found to be incorrect or insufficient during execution:
 - Cross-reference: `Correction-of: [plan/<name>#<section>]`, `Reason: <evidence-based rationale>`.
 - Log the correction in `docs/progress/<name>.md` under "Plan Corrections".
 
+#### Approach Abandonment Gate (must precede any switch of approach)
+
+When implementation hits friction and the impulse is to switch to a different approach: **STOP**. The default response to friction is "investigate this specific failure" (per RULE 5b), not "abandon the approach."
+
+A claim of "this approach doesn't work" is itself a technical claim and must be grounded (per RULE 0c Anti-Guessing). Without grounding, it is a `[GUESS]` — and switching approaches based on a guess compounds the problem: the new approach may hit the same actual root cause, undiagnosed.
+
+**Two distinct failure modes this gate prevents:**
+
+- **Mode A (premature optimism)** — declaring "this approach will work" without evidence. Addressed by A.3 Feasibility Research + RULE 0c Anti-Guessing.
+- **Mode B (premature pessimism)** — declaring "this approach won't work" without evidence. Addressed by THIS gate.
+
+Both are cases of a confident-sounding judgment substituting for actual investigation.
+
+##### Pre-conditions for abandoning an approach (all required)
+
+1. **Full RULE 5b investigation cycle completed** for the failure that prompted reconsideration. At least one Stage 1 (runtime investigation) → Stage 2 (verified hypothesis) cycle has run. The root cause is **CONFIRMED** with runtime evidence — not INCONCLUSIVE, not "this looks like the approach is wrong."
+
+2. **Root cause classified as approach-level, not detail-level**:
+   - **APPROACH-LEVEL**: the root cause invalidates an A# Feasibility Research assumption, OR makes an AC unachievable under any implementation of the chosen approach.
+   - **DETAIL-LEVEL**: a specific code, config, version, integration, or environment choice; a different implementation of the same approach could resolve it.
+
+3. **Detail-level fixes attempted before abandonment**: if there is any plausible detail-level cause, attempt at least one fix per RULE 5d. Per RULE 5e, "no fixable variant within the approach" requires 3 different failed fix attempts (genuinely different fixes, not the same fix retried).
+
+##### Mandatory artifact: Approach Abandonment Decision
+
+Before declaring an approach infeasible, produce a `### Approach Abandonment Decision` entry in the progress document:
+
+```
+### Approach Abandonment Decision
+
+**Trigger**: [what symptom prompted reconsideration of the approach]
+
+**RULE 5b investigation reference**: [issue/<name>.md#ISS-NNN — link to Diagnosis section with verified root cause]
+
+**Confirmed root cause**: [statement, with concrete evidence: file path, command output, debugger trace, profiler output]
+
+**Classification**: APPROACH-LEVEL
+
+**Evidence the issue is approach-level (not detail-level)**:
+
+| Source | Evidence | Conclusion |
+|--------|----------|------------|
+| A# invalidation | [A3 was CONFIRMED via `man kqueue`; now invalidated because <new evidence>] | Assumption no longer holds |
+| AC unachievability | [AC-2 (latency p99 < 300ms) requires <X>; the chosen approach has minimum <Y> due to <evidence>] | AC cannot be met under this approach |
+| Variants tried | V1: <approach + result>; V2: <variant + result>; V3: <variant + result> — all hit <same constraint> at <evidence> | No implementation of this approach satisfies <AC/NFR> |
+
+**Decision**: ABANDON
+
+**Next step**: mark current plan `Status: DEPRECATED`, return to META-PHASE A with this evidence as input. The new plan must address the invalidated assumption directly.
+```
+
+If the evidence does not meet the bar — the root cause is INCONCLUSIVE, only one variant tried, or the failure is plausibly detail-level — the decision must be **CONTINUE WITH FIX**: return to RULE 5d. Do not abandon.
+
+##### Anti-patterns explicitly forbidden
+
+- **"This is more complex than I thought, switching to simpler approach"** — complexity is not infeasibility. Complexity is a separate concern (Overriding Principle: production-grade quality, not simplest correct).
+- **"First fix didn't work, the approach must be wrong"** — single failure ≠ approach failure. RULE 5e requires 3+ failed fixes before changing strategy.
+- **"I have a better idea now, let me switch"** — record the better idea as a candidate ADR for the next plan, but finish investigating the current failure first. Without finishing investigation, you cannot tell if the "better idea" is actually better or just different.
+- **"The error message hints the approach is wrong"** — error messages often mislead. Verify with runtime evidence before drawing structural conclusions.
+- **"The library doesn't do exactly what I expected"** — read its source. Sometimes there's a workaround at the integration layer (detail-level), sometimes there's a real limitation (approach-level). The difference is verifiable.
+- **"The fix is taking too long, switching is faster"** — sunk-cost reasoning. Switching to an undiagnosed alternative likely takes longer overall because the new approach may hit the same root cause or a different one with no learning carried forward.
+
+##### Cost of skipping this gate
+
+- The new approach may hit the same actual root cause (e.g., a dependency limitation that affects all approaches), still undiagnosed.
+- Genuine fixable bugs get hidden behind an "abandoned" plan and never resolved.
+- Multiple plans get abandoned for what was actually one detail-level issue, exhausting effort.
+- Sunk-cost spirals: each switch leaves implementation work that won't be reused.
+- Knowledge loss: the plan's findings, ADR, and feasibility evidence become orphaned without the lessons learned being preserved as findings.
+
 #### Re-Plan Trigger
-If an issue is deemed unsolvable after exhausting the escalation protocol (RULE 5, section 5e):
+A re-plan (returning to META-PHASE A) is triggered by exactly two paths:
+
+1. **RULE 5e exhaustion** — 5 different failed plans for the same issue (per the escalation protocol).
+2. **Approach Abandonment Gate passed** — the Abandonment Decision artifact above shows APPROACH-LEVEL root cause with sufficient evidence.
+
+When triggered:
 1. Mark the current plan `Status: DEPRECATED`, add `Superseded-by: [plan/<new-name>]`.
 2. Create a new plan file referencing the deprecated plan and explaining what changed and why.
-3. Restart from META-PHASE A with accumulated findings.
+3. Restart from META-PHASE A with accumulated findings (especially the verified root cause from the abandonment investigation — this becomes a CONSTRAINT or DISCOVERY finding informing the new plan's A.0/A.2/A.3).
 
 ### META-PHASE D: Completion
 
